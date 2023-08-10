@@ -1,4 +1,9 @@
 #pragma once
+
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <iostream>
+#include <memory>
 #include "entity.h"
 #include "entityManager.h"
 //opengl?
@@ -9,7 +14,7 @@ struct BulletConfig { int SR, CR, FR, FG, FB, OR, OG, OB, OT, V, L ; float S; };
 
 class Game
 {
-    //glRenderWindow m_window;
+    GLFWwindow* m_window;
     EntityManager m_entities;
    // font m_font;
    // text m_text;
@@ -26,7 +31,7 @@ class Game
     void init(const std::string& config);
     void setPaused(bool paused);
 
-    void sMovement();
+    void sMovement(std::vector<Entity>& entities);
     void sUserInput();
     void sLifeSpan();
     void sRender();
@@ -38,6 +43,9 @@ class Game
     void spawnSmallEnemies(std::shared_ptr<Entity> entity);
     void spawnBullet(std::shared_ptr<Entity> entity, const glm::vec2& mousePos);
     void spawnSpecialWeapon(std::shared_ptr<Entity> entity);
+public:
+    Game(const std::string & config);
+    void run();
 };
 
 

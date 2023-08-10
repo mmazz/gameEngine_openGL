@@ -33,6 +33,7 @@ class CCollision
 class CInput
 {
 public:
+    //bool                    Keys[1024];
     bool up    = false;
     bool left  = false;
     bool right = false;

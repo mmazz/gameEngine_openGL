@@ -1,6 +1,6 @@
 #include "entity.h"
 
-Entity::Entity(const size_t id, const enum tag& tag)
+Entity::Entity(const enum tag& tag, const size_t id)
     : m_id(id), m_tag(tag) {}
 
 bool Entity::isActive() const
