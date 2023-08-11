@@ -16,11 +16,11 @@ enum polygons
 class CTransform
 {
 public:
-    glm::vec2 m_pos = {0.0f, 0.0f};
-    glm::vec2 m_velocity = {0.0f, 0.0f};
+    glm::vec3 m_pos = {0.0f, 0.0f, 0.0f};
+    glm::vec3 m_velocity = {0.0f, 0.0f, 0.0f};
     float angle = 0;
 
-    CTransform(const glm::vec2& p, const glm::vec2& v, float a)
+    CTransform(const glm::vec3& p, const glm::vec3& v, float a)
         :m_pos(p), m_velocity(v), angle(a) {}
 };
 
@@ -29,11 +29,11 @@ class CShape
 {
 
 
-    float m_vertices[1024];
-    unsigned int m_indices[100];
+  //  float m_vertices[1024];
+   // unsigned int m_indices[100];
 public:
     // Tengo que armarme vertex arrays?
-    CShape(const enum polygons type_poly, glm::vec2 pos, glm::vec2 size,  glm::vec3 color = glm::vec3(1.0f), glm::vec2 velocity = glm::vec2(0.0f, 0.0f));
+    CShape();
 };
 
 

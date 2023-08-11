@@ -1,18 +1,24 @@
 #include "game.h"
 
 // The Width of the screen
-const unsigned int SCREEN_WIDTH = 800;
+const unsigned int SCREEN_WIDTH = 1280;
 // The height of the screen
-const unsigned int SCREEN_HEIGHT = 600;
+const unsigned int SCREEN_HEIGHT = 720;
 
 
 
 
 float vertices[] = {
-    // positions         // colors
-     0.5f, -0.5f, 0.0f,  1.0f, 0.0f, 0.0f,  // bottom right
-    -0.5f, -0.5f, 0.0f,  0.0f, 1.0f, 0.0f,  // bottom left
-     0.0f,  0.5f, 0.0f,  0.0f, 0.0f, 1.0f   // top
+        // positions          // colors    re coords
+     0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,  // top right
+     0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,  // bottom right
+    -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,  // bottom left
+    -0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f  // top left
+};
+
+unsigned int indices[] = {
+    0, 1, 3, // first triangle
+    1, 2, 3  // second triangle
 };
 
 // todo hacer que los vertex entren por el config file
@@ -48,8 +54,27 @@ Game::~Game()
 }
 void Game::init(const std::string& path)
 {
+    glGenVertexArrays(1, &m_VAO);
+    glGenBuffers(1, &m_VBO);
+    glGenBuffers(1, &m_EBO);
+    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+    glBindVertexArray(m_VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);    // position attribute
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // color attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);                                                                            //
+
 
     spawnPlayer();
+    spawnEnemy();
     //read variables...
     // create window
     // set framerate limit
@@ -85,7 +110,7 @@ void Game::run()
     // ------------------------------------------------------------------------
     glDeleteVertexArrays(1, &m_VAO);
     glDeleteBuffers(1, &m_VBO);
-
+    glDeleteBuffers(1, &m_EBO);
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
     glfwTerminate();
@@ -100,9 +125,9 @@ void Game::spawnPlayer()
 {
     // falta agregar demas propiedades del config
     auto entity = m_entities.addEntity(Player);
-   entity->cTransform = std::make_shared<CTransform>(glm::vec2(200.0f, 200.0f),
-           glm::vec2(1.0f, 1.0f), 0.0f);
-   entity->cShape = std::make_shared<CShape>(Triangle, glm::vec2(200.0f, 200.0f), glm::vec2(100.0f, 100.0f),  glm::vec3(1.0f), glm::vec2( 0.0f, 0.0f));
+   entity->cTransform = std::make_shared<CTransform>(glm::vec3(1.0f, 0.0f,1.0f),
+                                                     glm::vec3(0.01f, 0.01f,0.0f), 0.0f);
+//   entity->cShape = std::make_shared<CShape>();
 //
 //    // falta meter inputs
     entity->cInput = std::make_shared<CInput>();
@@ -111,20 +136,7 @@ void Game::spawnPlayer()
     {
         m_player->cInput->Keys[i] = false;
     }
-    glGenVertexArrays(1, &m_VAO);
-    glGenBuffers(1, &m_VBO);
-    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-    glBindVertexArray(m_VAO);
 
-    glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    // color attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
 
 }
 // Tieene que hacer draw de todo...
@@ -135,7 +147,19 @@ void Game::sRender()
     // render the triangle
     m_ourShader->use();
     glBindVertexArray(m_VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glm::mat4 model(1.0f);
+    glm::mat4 translate(1.0f);
+    glm::mat4 scale(1.0f);
+    //glm::mat4 translate = glm::translate(model, glm::vec3(0.0f,0.0f, 1.0f));
+    for (auto e: m_entities.getEntities())
+    {
+        model = glm::mat4(1.0f);
+        translate = glm::translate(model, e->cTransform->m_pos);
+        scale = glm::scale(model, glm::vec3(0.5f,0.5f,1.0f));
+        model = scale * translate;
+        m_ourShader->setMat4("u_MPV", model);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
 }
 
 //    for (auto e : m_entities.getEntities())
@@ -155,13 +179,8 @@ void Game::spawnEnemy()
     auto entity = m_entities.addEntity(Enemy);
 //    float ex = rand() % window.Width;
  //   float ey = rand() % window.Height;
-    float ex = 100.0;
-    float ey = 50.0;
-//    entity->cTransform = std::make_shared<CTransform>(glm::vec2(ex, ey),
-//            glm::vec2(1.0f, 1.0f), 0.0f);
-//    int args = 1; //hacer...
-//    entity->cShape = std::make_shared<CShape>(args);
-//
+    entity->cTransform = std::make_shared<CTransform>(glm::vec3(1.0f, 0.0f,1.0f),
+                                                     glm::vec3(0.01f, 0.05f,0.0f), 0.0f);
 //    //falta meter las variables del config
 //    m_lastEnemySpawnTime = m_currentFrame;
 
@@ -180,7 +199,43 @@ void Game::spawnBullet(std::shared_ptr<Entity> e, const glm::vec2& target)
 void Game::sMovement()
 {
     if(m_player->cInput->Keys[GLFW_KEY_W])
-        m_player->cTransform->m_pos +=m_player->cTransform->m_velocity;
+    {
+        if(m_player->cTransform->m_pos[1]<SCREEN_HEIGHT)
+            m_player->cTransform->m_pos[1] += m_player->cTransform->m_velocity[1];
+    }
+    if(m_player->cInput->Keys[GLFW_KEY_S])
+    {
+        if(m_player->cTransform->m_pos[1]>0.0f)
+            m_player->cTransform->m_pos[1] -= m_player->cTransform->m_velocity[1];
+    }
+    if(m_player->cInput->Keys[GLFW_KEY_A])
+    {
+        if(m_player->cTransform->m_pos[0]>0.0f)
+            m_player->cTransform->m_pos[0] -= m_player->cTransform->m_velocity[0];
+    }
+    if(m_player->cInput->Keys[GLFW_KEY_D])
+    {
+        if(m_player->cTransform->m_pos[0]<SCREEN_WIDTH)
+            m_player->cTransform->m_pos[0] +=m_player->cTransform->m_velocity[0];
+    }
+    for (auto e: m_entities.getEntities(Enemy))
+    {
+        if(e->cTransform->m_pos[1]>2)
+            e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
+
+        if(e->cTransform->m_pos[1]<0.0f)
+            e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
+
+        if(e->cTransform->m_pos[0]<0.0f)
+            e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
+
+        if(e->cTransform->m_pos[0]>2)
+            e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
+
+        e->cTransform->m_pos += e->cTransform->m_velocity;
+        std::cout << e->cTransform->m_pos[1] << std::endl;
+    }
+
 }
 
 void Game::sCollision()

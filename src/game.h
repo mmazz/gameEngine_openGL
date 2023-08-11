@@ -17,7 +17,8 @@ struct BulletConfig { int SR, CR, FR, FG, FB, OR, OG, OB, OT, V, L ; float S; };
 
 class Game
 {
-    unsigned int m_VBO, m_VAO;
+    //unsigned int m_VBO, m_VAO;
+    unsigned int m_VBO, m_VAO, m_EBO;
     EntityManager m_entities;
    // font m_font;
    // text m_text;
