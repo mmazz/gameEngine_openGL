@@ -2,6 +2,16 @@
 // La C es de component, y depsues el nombre
 #include <glm/glm.hpp>
 
+enum polygons
+{
+    Triangle,
+    Square,
+    Pentagon,
+    Hexagon
+};
+
+
+
 // Basicamente como vamos a movernos en el espacio
 class CTransform
 {
@@ -17,9 +27,13 @@ public:
 
 class CShape
 {
+
+
+    float m_vertices[1024];
+    unsigned int m_indices[100];
 public:
     // Tengo que armarme vertex arrays?
-    CShape() {}
+    CShape(const enum polygons type_poly, glm::vec2 pos, glm::vec2 size,  glm::vec3 color = glm::vec3(1.0f), glm::vec2 velocity = glm::vec2(0.0f, 0.0f));
 };
 
 
@@ -33,7 +47,8 @@ class CCollision
 class CInput
 {
 public:
-    //bool                    Keys[1024];
+    bool Keys[1024];
+    bool escape = false;
     bool up    = false;
     bool left  = false;
     bool right = false;

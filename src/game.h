@@ -6,6 +6,9 @@
 #include <memory>
 #include "entity.h"
 #include "entityManager.h"
+#include "components.h"
+#include "shader.h"
+
 //opengl?
 
 struct PlayerConfig { int SR, CR, FR, FG, FB, OR, OG, OB, OT, V; float S; };
@@ -14,10 +17,11 @@ struct BulletConfig { int SR, CR, FR, FG, FB, OR, OG, OB, OT, V, L ; float S; };
 
 class Game
 {
-    GLFWwindow* m_window;
+    unsigned int m_VBO, m_VAO;
     EntityManager m_entities;
    // font m_font;
    // text m_text;
+    Shader* m_ourShader;
     PlayerConfig m_playerConfig;
     EnemyConfig  m_enemyConfig;
     BulletConfig m_bulletConfig;
@@ -26,12 +30,10 @@ class Game
     int          m_lastenemySpawnTime = 0;
     bool         m_paused = false;
     bool         m_running = true;
-
-    std::shared_ptr<Entity> m_player;
     void init(const std::string& config);
     void setPaused(bool paused);
 
-    void sMovement(std::vector<Entity>& entities);
+    void sMovement();
     void sUserInput();
     void sLifeSpan();
     void sRender();
@@ -43,9 +45,12 @@ class Game
     void spawnSmallEnemies(std::shared_ptr<Entity> entity);
     void spawnBullet(std::shared_ptr<Entity> entity, const glm::vec2& mousePos);
     void spawnSpecialWeapon(std::shared_ptr<Entity> entity);
+
 public:
-    Game(const std::string & config);
+    GLFWwindow* m_window;
+    std::shared_ptr<Entity> m_player;
+    Game(const std::string & config,const char* vertexPath, const char* fragmentPath);
+    ~Game();
     void run();
 };
-
 

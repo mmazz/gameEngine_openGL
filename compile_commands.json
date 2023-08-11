@@ -1,0 +1,21 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-g",
+      "-Wall",
+      "-Wextra",
+      "-std=c++2a",
+      "-Ilib/include",
+      "-I/usr/include/freetype2",
+      "-Ivendor/glad/include",
+      "-c",
+      "-o",
+      "obj/game.o",
+      "src/game.cpp"
+    ],
+    "directory": "/home/mmazz/phd/gamming/comp4300",
+    "file": "/home/mmazz/phd/gamming/comp4300/src/game.cpp",
+    "output": "/home/mmazz/phd/gamming/comp4300/obj/game.o"
+  }
+]
