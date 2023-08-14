@@ -4,6 +4,8 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <memory>
+#include <array>
+
 #include "entity.h"
 #include "entityManager.h"
 #include "components.h"

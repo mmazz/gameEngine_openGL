@@ -17,6 +17,7 @@ int main()
     glfwSetKeyCallback(game.m_window, key_callback);
 
     game.run();
+
     return 0;
 }
 

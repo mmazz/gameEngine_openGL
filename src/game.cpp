@@ -8,14 +8,36 @@ const unsigned int SCREEN_HEIGHT = 720;
 
 
 
-float vertices[] = {
+/*float vertices[] = {
         // positions          // colors    re coords
-     0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,  // top right
-     0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,  // bottom right
-    -0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,  // bottom left
-    -0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f  // top left
+     0.5f,  0.5f,// 0.0f,   1.0f, 0.0f, 0.0f,  // top right
+     0.5f, -0.5f,// 0.0f,   0.0f, 1.0f, 0.0f,  // bottom right
+    -0.5f, -0.5f,// 0.0f,   0.0f, 0.0f, 1.0f,  // bottom left
+    -0.5f,  0.5f//, 0.0f,   1.0f, 1.0f, 0.0f  // top left
+};*/
+struct Vec2
+{
+    float x, y;
 };
 
+struct Vertex
+{
+    Vec2 Position;
+};
+
+static std::array<Vertex, 4> CreateQuad(float x, float y)
+{
+    float size = 1.0f;
+    Vertex v0;
+    v0.Position = {x, y};
+    Vertex v1;
+    v1.Position = {x+size, y};
+    Vertex v2;
+    v2.Position = {x+size, y+size};
+    Vertex v3;
+    v3.Position = {x, y+size};
+    return { v0, v1, v2, v3 };
+}
 unsigned int indices[] = {
     0, 1, 3, // first triangle
     1, 2, 3  // second triangle
@@ -60,19 +82,25 @@ void Game::init(const std::string& path)
     // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
     glBindVertexArray(m_VAO);
 
+    auto q0 = CreateQuad(-1.5f, -0.5f);
+    auto q1 = CreateQuad(0.5f, -0.5f);
+
+    Vertex vertices[8];
+    memcpy(vertices, q0.data(), q0.size() * sizeof(Vertex));
+    memcpy(vertices + q0.size(), q1.data(), q1.size() * sizeof(Vertex));
     glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);    // position attribute
-
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    // el primero es el componente que estamos seteando, en este caso el primero osea 0
+    // despues es la cantidad de elementos que tiene, tenemos 3 posiciones
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-    // color attribute
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);                                                                            //
+                                                                     //
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-
+    glBindVertexArray(0);
     spawnPlayer();
     spawnEnemy();
     //read variables...
@@ -125,7 +153,7 @@ void Game::spawnPlayer()
 {
     // falta agregar demas propiedades del config
     auto entity = m_entities.addEntity(Player);
-   entity->cTransform = std::make_shared<CTransform>(glm::vec3(1.0f, 0.0f,1.0f),
+    entity->cTransform = std::make_shared<CTransform>(glm::vec3(1.0f, 0.0f,1.0f),
                                                      glm::vec3(0.01f, 0.01f,0.0f), 0.0f);
 //   entity->cShape = std::make_shared<CShape>();
 //
@@ -158,7 +186,9 @@ void Game::sRender()
         scale = glm::scale(model, glm::vec3(0.5f,0.5f,1.0f));
         model = scale * translate;
         m_ourShader->setMat4("u_MPV", model);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        //glDrawArrays(GL_TRIANGLES, 0, 6);
+        // 6=cantidad de indices
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
     }
 }
 
