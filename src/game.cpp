@@ -1,21 +1,12 @@
 #include "game.h"
 #include <cstdint>
+#include <glm/ext/matrix_clip_space.hpp>
 
 // The Width of the screen
 const unsigned int SCREEN_WIDTH = 1920;
 // The height of the screen
 const unsigned int SCREEN_HEIGHT = 1080;
 
-
-
-
-/*float vertices[] = {
-        // positions          // colors    re coords
-     0.5f,  0.5f,// 0.0f,   1.0f, 0.0f, 0.0f,  // top right
-     0.5f, -0.5f,// 0.0f,   0.0f, 1.0f, 0.0f,  // bottom right
-    -0.5f, -0.5f,// 0.0f,   0.0f, 0.0f, 1.0f,  // bottom left
-    -0.5f,  0.5f//, 0.0f,   1.0f, 1.0f, 0.0f  // top left
-};*/
 struct Vec2
 {
     float x, y;
@@ -31,30 +22,26 @@ struct Vertex
     Vec4 Color;
 };
 
+float rotate = 0.0f;
+float size = 0.25f;
 static std::array<Vertex, 4> CreateQuad(glm::vec3 pos)
 {
     float x = pos[0];
     float y = pos[1];
-    float size = 1.0f;
     Vertex v0;
-    v0.Position = {x, y};
+    v0.Position = {x-size, y-size};
     v0.Color = {0.18f+x, 0.1f, 0.3f, 1.0f};
     Vertex v1;
-    v1.Position = {x+size, y};
+    v1.Position = {x+size, y-size};
     v1.Color = {0.18f+x, 0.1f, 0.3f, 1.0f};
     Vertex v2;
     v2.Position = {x+size, y+size};
     v2.Color = {0.18f+x, 0.1f, 0.3f, 1.0f};
     Vertex v3;
-    v3.Position = {x, y+size};
+    v3.Position = {x-size, y+size};
     v3.Color = {0.18f+x, 0.1f, 0.3f, 1.0f};
     return { v0, v1, v2, v3 };
 }
-unsigned int indices[] = {
-    0, 1, 3, // first triangle
-    1, 2, 3  // second triangle
-};
-
 // todo hacer que los vertex entren por el config file
 Game::Game(const std::string& config, const char* vertexPath, const char* fragmentPath)
 {
@@ -73,7 +60,6 @@ Game::Game(const std::string& config, const char* vertexPath, const char* fragme
         std::cout << "Failed to initialize GLAD" << std::endl;
         // deberia terminar...
     }
-
     // Estas dos variables deberian venir del config filae
     glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     m_ourShader = new Shader(vertexPath, fragmentPath);
@@ -87,25 +73,42 @@ Game::~Game()
 }
 void Game::init(const std::string& path)
 {
+    const size_t MaxQuadsCount = 10;
+    const size_t MaxVertexCount = MaxQuadsCount * 4;
+    const size_t MaxIndexCount = MaxQuadsCount * 6;
     glGenVertexArrays(1, &m_VAO);
     glGenBuffers(1, &m_VBO);
     glGenBuffers(1, &m_EBO);
     // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
     glBindVertexArray(m_VAO);
 
-
     glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*100, nullptr , GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, MaxVertexCount * sizeof(Vertex), nullptr , GL_DYNAMIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);    // position attribute
+
     // el primero es el componente que estamos seteando, en este caso el primero osea 0
     // despues es la cantidad de elementos que tiene, tenemos 3 posiciones
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Position));
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,  sizeof(Vertex), (void*)offsetof(Vertex, Color));
     glEnableVertexAttribArray(1);
-                                                                                           //
+
+    uint32_t indices[MaxIndexCount];
+    uint32_t offset = 0;
+    for (int i=0; i<MaxIndexCount; i+=6)
+    {
+        indices[i + 0] = 0 + offset;
+        indices[i + 1] = 1 + offset;
+        indices[i + 2] = 3 + offset;
+        indices[i + 3] = 1 + offset;
+        indices[i + 4] = 2 + offset;
+        indices[i + 5] = 3 + offset;
+
+        offset += 4;
+    }
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);    // position attribute                                                              //
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glBindVertexArray(0);
@@ -123,8 +126,6 @@ void Game::run()
     // y otros si como el render.
     while (!glfwWindowShouldClose(m_window))
     {
-        // calculate delta time
-        // --------------------
         float currentFrame = glfwGetTime();
         m_entities.update();
 
@@ -142,13 +143,10 @@ void Game::run()
         glfwPollEvents();
         m_currentFrame++;
     }
-
-    // ------------------------------------------------------------------------
     glDeleteVertexArrays(1, &m_VAO);
     glDeleteBuffers(1, &m_VBO);
     glDeleteBuffers(1, &m_EBO);
     // glfw: terminate, clearing all previously allocated GLFW resources.
-    // ------------------------------------------------------------------
     glfwTerminate();
 }
 
@@ -161,10 +159,9 @@ void Game::spawnPlayer()
 {
     // falta agregar demas propiedades del config
     auto entity = m_entities.addEntity(Player);
-    entity->cTransform = std::make_shared<CTransform>(glm::vec3(1.0f, 0.0f,1.0f),
+    entity->cTransform = std::make_shared<CTransform>(glm::vec3(0.0f, 0.0f,0.0f),
                                                       glm::vec3(0.01f, 0.01f,0.0f), 0.0f);
 //   entity->cShape = std::make_shared<CShape>();
-//
 //    // falta meter inputs
     entity->cInput = std::make_shared<CInput>();
     m_player = entity;
@@ -175,6 +172,18 @@ void Game::spawnPlayer()
 
 
 }
+
+void Game::spawnEnemy()
+{
+    auto entity = m_entities.addEntity(Enemy);
+//    float ex = rand() % window.Width;
+ //   float ey = rand() % window.Height;
+    entity->cTransform = std::make_shared<CTransform>(glm::vec3(0.0f, 0.0f,0.0f),
+                                                     glm::vec3(0.01f, 0.05f,0.0f), 0.0f);
+//    //falta meter las variables del config
+//    m_lastEnemySpawnTime = m_currentFrame;
+
+}
 // Tieene que hacer draw de todo...
 void Game::sRender()
 {
@@ -183,21 +192,16 @@ void Game::sRender()
     // render the triangle
     m_ourShader->use();
     glBindVertexArray(m_VAO);
- //   auto q0 = CreateQuad(-1.5f, -0.5f);
-  //  auto q1 = CreateQuad(-1.5f, -0.5f);
 
     Vertex vertices[8];
-   // memcpy(vertices, q0.data(), q0.size() * sizeof(Vertex));
-   // memcpy(vertices + q0.size(), q1.data(), q1.size() * sizeof(Vertex));
-
 
     glm::mat4 model(1.0f);
-    glm::mat4 proj = glm::ortho(0.0f, (float)SCREEN_WIDTH, 0.0f, (float)SCREEN_HEIGHT, -1.0f, 1.0f);
- //   glm::mat4 translate(1.0f);
-    glm::mat4 scale(1.0f);
-    //glm::mat4 translate = glm::translate(model, glm::vec3(0.0f,0.0f, 1.0f));
     size_t temp = 0;
     auto q = CreateQuad(glm::vec3(1.0f));
+    if (rotate < 6.30f)
+        rotate += 0.25f;
+    else
+        rotate = 0.0f;
     for (auto e: m_entities.getEntities())
     {
         if(e->cTransform)
@@ -206,13 +210,9 @@ void Game::sRender()
             memcpy(vertices + temp, q.data(), q.size() * sizeof(Vertex));
             temp += q.size();
         }
-        model = glm::mat4(1.0f);
-//        translate = glm::translate(model, e->cTransform->m_pos);
-        scale = glm::scale(model, glm::vec3(0.5f,0.5f,1.0f));
-        model = scale;
-       // model = proj*scale;// * translate;
         m_ourShader->setMat4("u_MPV", model);
-        //glDrawArrays(GL_TRIANGLES, 0, 6);
+
+      //  glDrawArrays(GL_TRIANGLES, 0, 6);
         // 6=cantidad de indices
     }
     glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
@@ -232,17 +232,7 @@ void Game::sRender()
 //    }
 
 
-void Game::spawnEnemy()
-{
-    auto entity = m_entities.addEntity(Enemy);
-//    float ex = rand() % window.Width;
- //   float ey = rand() % window.Height;
-    entity->cTransform = std::make_shared<CTransform>(glm::vec3(1.0f, 0.0f,1.0f),
-                                                     glm::vec3(0.01f, 0.05f,0.0f), 0.0f);
-//    //falta meter las variables del config
-//    m_lastEnemySpawnTime = m_currentFrame;
 
-}
 
 void Game::spawnSmallEnemies(std::shared_ptr<Entity> e)
 {
@@ -258,40 +248,41 @@ void Game::sMovement()
 {
     if(m_player->cInput->Keys[GLFW_KEY_W])
     {
-        if(m_player->cTransform->m_pos[1]<SCREEN_HEIGHT)
+        if(m_player->cTransform->m_pos[1]<1.0f)
             m_player->cTransform->m_pos[1] += m_player->cTransform->m_velocity[1];
     }
     if(m_player->cInput->Keys[GLFW_KEY_S])
     {
-        if(m_player->cTransform->m_pos[1]>0.0f)
+        if(m_player->cTransform->m_pos[1]>-1.0f)
             m_player->cTransform->m_pos[1] -= m_player->cTransform->m_velocity[1];
     }
     if(m_player->cInput->Keys[GLFW_KEY_A])
     {
-        if(m_player->cTransform->m_pos[0]>0.0f)
+        if(m_player->cTransform->m_pos[0]>-1.0f)
             m_player->cTransform->m_pos[0] -= m_player->cTransform->m_velocity[0];
     }
     if(m_player->cInput->Keys[GLFW_KEY_D])
     {
-        if(m_player->cTransform->m_pos[0]<SCREEN_WIDTH)
+        if(m_player->cTransform->m_pos[0]<1.0f)
             m_player->cTransform->m_pos[0] +=m_player->cTransform->m_velocity[0];
     }
     for (auto e: m_entities.getEntities(Enemy))
     {
-        if(e->cTransform->m_pos[1]>2)
+        if(e->cTransform->m_pos[1]>1.0f)
             e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
 
-        if(e->cTransform->m_pos[1]<0.0f)
+        if(e->cTransform->m_pos[1]<-1.0f)
             e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
 
-        if(e->cTransform->m_pos[0]<0.0f)
+        if(e->cTransform->m_pos[0]<-1.0f)
             e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
 
-        if(e->cTransform->m_pos[0]>2)
+        if(e->cTransform->m_pos[0]>1.0f)
             e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
 
         e->cTransform->m_pos += e->cTransform->m_velocity;
-        //std::cout << e->cTransform->m_pos[1] << std::endl;
+       // std::cout << e->cTransform->m_pos[0] << std::endl;
+    //    std::cout << e->cTransform->m_pos[1] << std::endl;
     }
 
 }
