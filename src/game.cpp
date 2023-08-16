@@ -3,11 +3,12 @@
 #include <glm/ext/matrix_clip_space.hpp>
 
 // The Width of the screen
-const unsigned int SCREEN_WIDTH = 1920;
+float SCREEN_WIDTH = 1920.0f;
 // The height of the screen
-const unsigned int SCREEN_HEIGHT = 1080;
+float SCREEN_HEIGHT = 1080.0f;
+float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
 
-const size_t MaxQuadsCount = 100;
+const size_t MaxQuadsCount = 1000;
 
 struct Vec2
 {
@@ -25,30 +26,38 @@ struct Vertex
 };
 
 float rotate = 0.0f;
-float size = 0.25f;
 
-
-static Vertex* CreateQuad(Vertex* target, glm::vec3 pos)
+static Vertex* CreateQuad(Vertex* target, glm::vec3 pos, float size)
 {
     float x = pos[0];
     float y = pos[1];
     target->Position = {x-size, y-size};
-    target->Color = {0.18f+x, 0.1f, 0.3f+y, 1.0f};
+    target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
     target->Position = {x+size, y-size};
-    target->Color = {0.18f+x, 0.1f, 0.3f+y, 1.0f};
+    target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
     target->Position = {x+size, y+size};
-    target->Color = {0.18f+x, 0.1f, 0.3f+y, 1.0f};
+    target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
     target->Position = {x-size, y+size};
-    target->Color = {0.18f+x, 0.1f, 0.3f+y, 1.0f};
+    target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
     return target;
+}
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    // make sure the viewport matches the new window dimensions; note that width and
+    // height will be significantly larger than specified on retina displays.
+    glViewport(0, 0, width, height);
+    SCREEN_WIDTH = (float)width;
+    SCREEN_HEIGHT = (float)height;
+    ratio =  (float)width/(float)height;
 }
 // todo hacer que los vertex entren por el config file
 Game::Game(const std::string& config, const char* vertexPath, const char* fragmentPath)
@@ -62,7 +71,7 @@ Game::Game(const std::string& config, const char* vertexPath, const char* fragme
 
     m_window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "MatiDo", nullptr, nullptr);
     glfwMakeContextCurrent(m_window);
-
+    glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
@@ -70,6 +79,7 @@ Game::Game(const std::string& config, const char* vertexPath, const char* fragme
     }
     // Estas dos variables deberian venir del config filae
     glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
     m_ourShader = new Shader(vertexPath, fragmentPath);
 
     init(config);
@@ -79,6 +89,7 @@ Game::~Game()
 {
     delete m_ourShader;
 }
+
 void Game::init(const std::string& path)
 {
     const size_t MaxVertexCount = MaxQuadsCount * 4;
@@ -87,7 +98,6 @@ void Game::init(const std::string& path)
     glGenVertexArrays(1, &m_QuadVA);
     glGenBuffers(1, &m_QuadVB);
     glGenBuffers(1, &m_QuadIB);
-    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
     glBindVertexArray(m_QuadVA);
 
     glBindBuffer(GL_ARRAY_BUFFER, m_QuadVB);
@@ -121,7 +131,7 @@ void Game::init(const std::string& path)
 
     glBindVertexArray(0);
     spawnPlayer();
-    spawnEnemy();
+ //   spawnEnemy();
     //read variables...
     // create window
     // set framerate limit
@@ -169,8 +179,7 @@ void Game::spawnPlayer()
     auto entity = m_entities.addEntity(Player);
     entity->cTransform = std::make_shared<CTransform>(glm::vec3(0.0f, 0.0f,0.0f),
                                                       glm::vec3(0.01f, 0.01f,0.0f), 0.0f);
-//   entity->cShape = std::make_shared<CShape>();
-//    // falta meter inputs
+    entity->cShape = std::make_shared<CShape>();
     entity->cInput = std::make_shared<CInput>();
     m_player = entity;
     for (int i=0; i<1024; i++)
@@ -184,13 +193,14 @@ void Game::spawnPlayer()
 void Game::spawnEnemy()
 {
     auto entity = m_entities.addEntity(Enemy);
-//    float ex = rand() % window.Width;
- //   float ey = rand() % window.Height;
-    entity->cTransform = std::make_shared<CTransform>(glm::vec3(0.0f, 0.0f,0.0f),
+    float ex = rand() % 1-0.5f;
+    float ey = rand() % 1-0.5f;
+    entity->cTransform = std::make_shared<CTransform>(glm::vec3(ex, ey,0.0f),
                                                      glm::vec3(0.01f, 0.05f,0.0f), 0.0f);
 //    //falta meter las variables del config
-//    m_lastEnemySpawnTime = m_currentFrame;
+    m_lastEnemySpawnTime = m_currentFrame;
 
+    entity->cShape = std::make_shared<CShape>(0.1f);
 }
 // Tieene que hacer draw de todo...
 void Game::sRender()
@@ -201,26 +211,32 @@ void Game::sRender()
         rotate = 0.0f;
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     uint32_t indexCount = 0;
-    std::array<Vertex, 100> vertices;
+    std::array<Vertex, MaxQuadsCount * 4> vertices;
     Vertex* buffer = vertices.data();
 
     glm::mat4 model(1.0f);
     m_ourShader->use();
+    model =  scale(model, glm::vec3( 1.0f/ratio, 1.0f, 1.0f));
+    glm::mat4 rotation = glm::rotate(model, rotate, glm::vec3(0.0f, 0.0f, 1.0f)); // where x, y, z is axis of rotation (e.g. 0 1 0)
     for (auto e: m_entities.getEntities())
     {
         if(e->cTransform)
         {
-            buffer = CreateQuad(buffer, e->cTransform->m_pos);
+            buffer = CreateQuad(buffer, e->cTransform->m_pos, e->cShape->m_size);
+
             indexCount += 6;
         }
 
     }
+    glm::mat4 u_MPV =  model;
+    // Esto aca seria para algo global como la camara...
+    m_ourShader->setMat4("u_MPV",  u_MPV);
+
     glBindBuffer(GL_ARRAY_BUFFER, m_QuadVB);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(Vertex), vertices.data());
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // Esto aca seria para algo global como la camara...
-    m_ourShader->setMat4("u_MPV", model);
+
 
     glBindVertexArray(m_QuadVA);
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
@@ -254,36 +270,36 @@ void Game::sMovement()
 {
     if(m_player->cInput->Keys[GLFW_KEY_W])
     {
-        if(m_player->cTransform->m_pos[1]<1.0f)
+        if(m_player->cTransform->m_pos[1]<1.0f-m_player->cShape->m_size)
             m_player->cTransform->m_pos[1] += m_player->cTransform->m_velocity[1];
     }
     if(m_player->cInput->Keys[GLFW_KEY_S])
     {
-        if(m_player->cTransform->m_pos[1]>-1.0f)
+        if(m_player->cTransform->m_pos[1]>-1.0f+m_player->cShape->m_size)
             m_player->cTransform->m_pos[1] -= m_player->cTransform->m_velocity[1];
     }
     if(m_player->cInput->Keys[GLFW_KEY_A])
     {
-        if(m_player->cTransform->m_pos[0]>-1.0f)
+        if(m_player->cTransform->m_pos[0]>-1.0f-m_player->cShape->m_size*ratio)
             m_player->cTransform->m_pos[0] -= m_player->cTransform->m_velocity[0];
     }
     if(m_player->cInput->Keys[GLFW_KEY_D])
     {
-        if(m_player->cTransform->m_pos[0]<1.0f)
+        if(m_player->cTransform->m_pos[0]<1.0f+m_player->cShape->m_size*ratio)
             m_player->cTransform->m_pos[0] +=m_player->cTransform->m_velocity[0];
     }
     for (auto e: m_entities.getEntities(Enemy))
     {
-        if(e->cTransform->m_pos[1]>1.0f)
+        if(e->cTransform->m_pos[1]>1.0f-e->cShape->m_size)
             e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
 
-        if(e->cTransform->m_pos[1]<-1.0f)
+        if(e->cTransform->m_pos[1]<-1.0f+e->cShape->m_size)
             e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
 
-        if(e->cTransform->m_pos[0]<-1.0f)
+        if(e->cTransform->m_pos[0]<-1.0f-e->cShape->m_size*ratio)
             e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
 
-        if(e->cTransform->m_pos[0]>1.0f)
+        if(e->cTransform->m_pos[0]>1.0f+e->cShape->m_size*ratio)
             e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
 
         e->cTransform->m_pos += e->cTransform->m_velocity;
@@ -300,8 +316,10 @@ void Game::sCollision()
 void Game::sEnemySpawner()
 {
     // agregar par que cada x frames se meta uno.
- //   if (m_currentFrame - m_lastEnemySpawnTime)
- //       spawnEnemy();
+    if ((m_currentFrame-m_lastEnemySpawnTime)%100==0)
+    {
+        spawnEnemy();
+    }
 }
 
 

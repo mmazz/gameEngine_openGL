@@ -28,12 +28,13 @@ public:
 class CShape
 {
 
-
   //  float m_vertices[1024];
    // unsigned int m_indices[100];
 public:
+    float m_size;
     // Tengo que armarme vertex arrays?
-    CShape();
+    CShape():m_size(0.25f) {}
+    CShape(float size):m_size(size) {}
 };
 
 
