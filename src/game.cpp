@@ -7,6 +7,8 @@ const unsigned int SCREEN_WIDTH = 1920;
 // The height of the screen
 const unsigned int SCREEN_HEIGHT = 1080;
 
+const size_t MaxQuadsCount = 100;
+
 struct Vec2
 {
     float x, y;
@@ -24,23 +26,29 @@ struct Vertex
 
 float rotate = 0.0f;
 float size = 0.25f;
-static std::array<Vertex, 4> CreateQuad(glm::vec3 pos)
+
+
+static Vertex* CreateQuad(Vertex* target, glm::vec3 pos)
 {
     float x = pos[0];
     float y = pos[1];
-    Vertex v0;
-    v0.Position = {x-size, y-size};
-    v0.Color = {0.18f+x, 0.1f, 0.3f, 1.0f};
-    Vertex v1;
-    v1.Position = {x+size, y-size};
-    v1.Color = {0.18f+x, 0.1f, 0.3f, 1.0f};
-    Vertex v2;
-    v2.Position = {x+size, y+size};
-    v2.Color = {0.18f+x, 0.1f, 0.3f, 1.0f};
-    Vertex v3;
-    v3.Position = {x-size, y+size};
-    v3.Color = {0.18f+x, 0.1f, 0.3f, 1.0f};
-    return { v0, v1, v2, v3 };
+    target->Position = {x-size, y-size};
+    target->Color = {0.18f+x, 0.1f, 0.3f+y, 1.0f};
+    target++;
+
+    target->Position = {x+size, y-size};
+    target->Color = {0.18f+x, 0.1f, 0.3f+y, 1.0f};
+    target++;
+
+    target->Position = {x+size, y+size};
+    target->Color = {0.18f+x, 0.1f, 0.3f+y, 1.0f};
+    target++;
+
+    target->Position = {x-size, y+size};
+    target->Color = {0.18f+x, 0.1f, 0.3f+y, 1.0f};
+    target++;
+
+    return target;
 }
 // todo hacer que los vertex entren por el config file
 Game::Game(const std::string& config, const char* vertexPath, const char* fragmentPath)
@@ -73,16 +81,16 @@ Game::~Game()
 }
 void Game::init(const std::string& path)
 {
-    const size_t MaxQuadsCount = 10;
     const size_t MaxVertexCount = MaxQuadsCount * 4;
     const size_t MaxIndexCount = MaxQuadsCount * 6;
-    glGenVertexArrays(1, &m_VAO);
-    glGenBuffers(1, &m_VBO);
-    glGenBuffers(1, &m_EBO);
-    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-    glBindVertexArray(m_VAO);
 
-    glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
+    glGenVertexArrays(1, &m_QuadVA);
+    glGenBuffers(1, &m_QuadVB);
+    glGenBuffers(1, &m_QuadIB);
+    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+    glBindVertexArray(m_QuadVA);
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_QuadVB);
     glBufferData(GL_ARRAY_BUFFER, MaxVertexCount * sizeof(Vertex), nullptr , GL_DYNAMIC_DRAW);
 
 
@@ -95,19 +103,19 @@ void Game::init(const std::string& path)
 
     uint32_t indices[MaxIndexCount];
     uint32_t offset = 0;
-    for (int i=0; i<MaxIndexCount; i+=6)
+    for (size_t i=0; i<MaxIndexCount; i+=6)
     {
         indices[i + 0] = 0 + offset;
         indices[i + 1] = 1 + offset;
-        indices[i + 2] = 3 + offset;
-        indices[i + 3] = 1 + offset;
-        indices[i + 4] = 2 + offset;
-        indices[i + 5] = 3 + offset;
+        indices[i + 2] = 2 + offset;
+        indices[i + 3] = 2 + offset;
+        indices[i + 4] = 3 + offset;
+        indices[i + 5] = 0 + offset;
 
         offset += 4;
     }
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_QuadIB);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);    // position attribute                                                              //
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -143,9 +151,9 @@ void Game::run()
         glfwPollEvents();
         m_currentFrame++;
     }
-    glDeleteVertexArrays(1, &m_VAO);
-    glDeleteBuffers(1, &m_VBO);
-    glDeleteBuffers(1, &m_EBO);
+    glDeleteVertexArrays(1, &m_QuadVA);
+    glDeleteBuffers(1, &m_QuadVB);
+    glDeleteBuffers(1, &m_QuadIB);
     // glfw: terminate, clearing all previously allocated GLFW resources.
     glfwTerminate();
 }
@@ -187,37 +195,35 @@ void Game::spawnEnemy()
 // Tieene que hacer draw de todo...
 void Game::sRender()
 {
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    // render the triangle
-    m_ourShader->use();
-    glBindVertexArray(m_VAO);
-
-    Vertex vertices[8];
-
-    glm::mat4 model(1.0f);
-    size_t temp = 0;
-    auto q = CreateQuad(glm::vec3(1.0f));
     if (rotate < 6.30f)
         rotate += 0.25f;
     else
         rotate = 0.0f;
+    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    uint32_t indexCount = 0;
+    std::array<Vertex, 100> vertices;
+    Vertex* buffer = vertices.data();
+
+    glm::mat4 model(1.0f);
+    m_ourShader->use();
     for (auto e: m_entities.getEntities())
     {
         if(e->cTransform)
         {
-            q = CreateQuad(e->cTransform->m_pos);
-            memcpy(vertices + temp, q.data(), q.size() * sizeof(Vertex));
-            temp += q.size();
+            buffer = CreateQuad(buffer, e->cTransform->m_pos);
+            indexCount += 6;
         }
-        m_ourShader->setMat4("u_MPV", model);
 
-      //  glDrawArrays(GL_TRIANGLES, 0, 6);
-        // 6=cantidad de indices
     }
-    glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
-    glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, nullptr);
+    glBindBuffer(GL_ARRAY_BUFFER, m_QuadVB);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(Vertex), vertices.data());
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Esto aca seria para algo global como la camara...
+    m_ourShader->setMat4("u_MPV", model);
+
+    glBindVertexArray(m_QuadVA);
+    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
 }
 
 //    for (auto e : m_entities.getEntities())
