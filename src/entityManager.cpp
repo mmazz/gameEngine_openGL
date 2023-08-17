@@ -35,17 +35,6 @@ void EntityManager::update()
     }
 
     m_entitiesToAdd.clear();
-    // Hay una manera de remover varias cosas de un vector sin causar
-    // iterator invalidation. Con std::remove_if o de otra forma
-    //
-
-  //  for (auto e: m_entities)
-  //  {
-  //      if (e->isActive())
-  //      {
-
-  //      }
-  //  }
 
     removeDeadEntities(m_entities);
     for (auto& [tag, entityVec] : m_entityMap)

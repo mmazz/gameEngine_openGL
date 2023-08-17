@@ -1,7 +1,8 @@
 #pragma once
-// La C es de component, y depsues el nombre
 #include <glm/glm.hpp>
 
+
+// Not used for now
 enum polygons
 {
     Triangle,
@@ -10,9 +11,6 @@ enum polygons
     Hexagon
 };
 
-
-
-// Basicamente como vamos a movernos en el espacio
 class CTransform
 {
 public:
@@ -27,12 +25,8 @@ public:
 
 class CShape
 {
-
-  //  float m_vertices[1024];
-   // unsigned int m_indices[100];
 public:
     float m_size;
-    // Tengo que armarme vertex arrays?
     CShape():m_size(0.25f) {}
     CShape(float size):m_size(size) {}
 };
@@ -62,7 +56,6 @@ class CScore
 {
 public:
     int score = 0;
-    // tengo que armarme vertex arrays?
     CScore(int s): score(s) {}
 };
 
@@ -71,6 +64,5 @@ class CLifeSpan
 public:
     int remaining = 0;
     int total     = 0;
-    // tengo que armarme vertex arrays?
     CLifeSpan(int total) : remaining(total), total(total) {}
 };
