@@ -34,7 +34,6 @@ class Game
     bool         m_paused = false;
     bool         m_running = true;
     void init(const std::string& config);
-    void setPaused(bool paused);
 
     void sMovement();
     void sUserInput();
@@ -56,5 +55,6 @@ public:
     Game(const std::string & config, const char* vertexPath, const char* fragmentPath);
     ~Game();
     void run();
+    void setPaused();
 };
 

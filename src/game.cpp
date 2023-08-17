@@ -1,4 +1,5 @@
 #include "game.h"
+#include <GLFW/glfw3.h>
 #include <cstdint>
 #include <glm/ext/matrix_clip_space.hpp>
 
@@ -11,18 +12,30 @@ float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
 const size_t MaxQuadsCount = 10000;
 
 const size_t FPS_SPAWN = 1;
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+    SCREEN_WIDTH = (float)width;
+    SCREEN_HEIGHT = (float)height;
+    ratio =  (float)width/(float)height;
+}
+
 struct Vec2
 {
     float x, y;
 };
+
 struct Vec3
 {
     float x, y, z;
 };
+
 struct Vec4
 {
     float x, y, z, w;
 };
+
 struct Vertex
 {
     Vec3 Position;
@@ -77,16 +90,8 @@ static void QuadRotation(Vertex* target, glm::vec3 pos, float angle)
 
 }
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    // make sure the viewport matches the new window dimensions; note that width and
-    // height will be significantly larger than specified on retina displays.
-    glViewport(0, 0, width, height);
-    SCREEN_WIDTH = (float)width;
-    SCREEN_HEIGHT = (float)height;
-    ratio =  (float)width/(float)height;
-}
-// todo hacer que los vertex entren por el config file
+
+
 Game::Game(const std::string& config, const char* vertexPath, const char* fragmentPath)
 {
     glfwInit();
@@ -102,9 +107,8 @@ Game::Game(const std::string& config, const char* vertexPath, const char* fragme
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
-        // deberia terminar...
+        // return?
     }
-    // Estas dos variables deberian venir del config filae
     glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     m_ourShader = new Shader(vertexPath, fragmentPath);
@@ -130,9 +134,6 @@ void Game::init(const std::string& path)
     glBindBuffer(GL_ARRAY_BUFFER, m_QuadVB);
     glBufferData(GL_ARRAY_BUFFER, MaxVertexCount * sizeof(Vertex), nullptr , GL_DYNAMIC_DRAW);
 
-
-    // el primero es el componente que estamos seteando, en este caso el primero osea 0
-    // despues es la cantidad de elementos que tiene, tenemos 3 posiciones
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Position));
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,  sizeof(Vertex), (void*)offsetof(Vertex, Color));
@@ -158,11 +159,9 @@ void Game::init(const std::string& path)
 
     glBindVertexArray(0);
     spawnPlayer();
- //   spawnEnemy();
-    //read variables...
-    // create window
-    // set framerate limit
-    //
+    // spawnEnemy();
+    // ToDo: read variables...
+    // ToDo: set framerate limit
 }
 
 void Game::run()
@@ -179,9 +178,9 @@ void Game::run()
             sEnemySpawner();
             sMovement();
             sCollision();
-            sUserInput();
         }
 
+        sUserInput();
         sRender();
 
         glfwSwapBuffers(m_window);
@@ -191,18 +190,16 @@ void Game::run()
     glDeleteVertexArrays(1, &m_QuadVA);
     glDeleteBuffers(1, &m_QuadVB);
     glDeleteBuffers(1, &m_QuadIB);
-    // glfw: terminate, clearing all previously allocated GLFW resources.
     glfwTerminate();
 }
 
-void Game::setPaused(bool paused)
+void Game::setPaused()
 {
-    m_paused = paused;
+    m_paused = !m_paused;
 }
 
 void Game::spawnPlayer()
 {
-    // falta agregar demas propiedades del config
     auto entity = m_entities.addEntity(Player);
     entity->cTransform = std::make_shared<CTransform>(glm::vec3(0.0f, 0.0f,0.0f),
                                                       glm::vec3(0.01f, 0.01f,0.0f), 0.0f);
@@ -213,10 +210,8 @@ void Game::spawnPlayer()
     {
         m_player->cInput->Keys[i] = false;
     }
-
-
 }
-int enemysCount = 0;
+
 void Game::spawnEnemy()
 {
     auto entity = m_entities.addEntity(Enemy);
@@ -225,14 +220,20 @@ void Game::spawnEnemy()
 
     entity->cTransform = std::make_shared<CTransform>(glm::vec3(ex, ey,0.0f),
                                                      glm::vec3(0.01f, 0.05f,0.0f), 0.0f);
-//    //falta meter las variables del config
     m_lastEnemySpawnTime = m_currentFrame;
 
     entity->cShape = std::make_shared<CShape>(0.01f);
-    enemysCount++;
-    std::cout << enemysCount << std::endl;
 }
-// Tieene que hacer draw de todo...
+
+void Game::sEnemySpawner()
+{
+    // agregar par que cada x frames se meta uno.
+    if ((m_currentFrame-m_lastEnemySpawnTime)%FPS_SPAWN==0)
+    {
+        spawnEnemy();
+    }
+}
+
 void Game::sRender()
 {
     if (rotate < 6.30f)
@@ -257,46 +258,21 @@ void Game::sRender()
         }
 
     }
+    // No camera system for now.
     glm::mat4 u_MPV =  model;
-    // Esto aca seria para algo global como la camara...
     m_ourShader->setMat4("u_MPV",  u_MPV);
 
     glBindBuffer(GL_ARRAY_BUFFER, m_QuadVB);
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(Vertex), vertices.data());
     glClear(GL_COLOR_BUFFER_BIT);
 
-
-
     glBindVertexArray(m_QuadVA);
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
 }
 
-//    for (auto e : m_entities.getEntities())
-//    {
-//        // si no tiene, es que tiene un nullptr y va a ser falso y no entra
-//        if (e->cTransform && e->cShape)
-//            break;
-//          //  std::cout << " " << std::endl;
-//    //          e.cShape->shape.setPosition(e.cTransform->pos);
-//    //          window.draw(e.cShape->shape);
-//
-//    }
-
-
-
-
-void Game::spawnSmallEnemies(std::shared_ptr<Entity> e)
-{
-
-}
-void Game::spawnBullet(std::shared_ptr<Entity> e, const glm::vec2& target)
-{
-
-}
-
-// requiere que tenga CTransform
 void Game::sMovement()
 {
+
     if(m_player->cInput->Keys[GLFW_KEY_W])
     {
         if(m_player->cTransform->m_pos[1]<1.0f-m_player->cShape->m_size)
@@ -332,35 +308,31 @@ void Game::sMovement()
             e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
 
         e->cTransform->m_pos += e->cTransform->m_velocity;
-       // std::cout << e->cTransform->m_pos[0] << std::endl;
-    //    std::cout << e->cTransform->m_pos[1] << std::endl;
     }
 
 }
 
 void Game::sCollision()
 {
+
 }
 
-void Game::sEnemySpawner()
-{
-    // agregar par que cada x frames se meta uno.
-    if ((m_currentFrame-m_lastEnemySpawnTime)%FPS_SPAWN==0)
-    {
-        spawnEnemy();
-    }
-}
-
-
-// RGBA el A es de alpha de transparencia.
-// Requere que tenga CTransform y CShape
-//
-//
 void Game::sUserInput()
 {
 
 }
 
+void Game::spawnSmallEnemies(std::shared_ptr<Entity> e)
+{
+
+}
+
+void Game::spawnBullet(std::shared_ptr<Entity> e, const glm::vec2& target)
+{
+
+}
+
+// Not used for now.
 void Game::LoadConfig(const std::string& filepath)
 {
     std::ifstream stream(filepath);
@@ -396,7 +368,6 @@ void Game::LoadConfig(const std::string& filepath)
             ss >> m_bulletConfig.S;
         }
     }
-    std::cout << m_playerConfig.S << " " << m_enemyConfig.SMAX << " " << m_bulletConfig.S << std::endl;
 }
 
 
