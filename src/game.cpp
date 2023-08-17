@@ -3,9 +3,7 @@
 #include <cstdint>
 #include <glm/ext/matrix_clip_space.hpp>
 
-// The Width of the screen
 float SCREEN_WIDTH = 1920.0f;
-// The height of the screen
 float SCREEN_HEIGHT = 1080.0f;
 float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
 
