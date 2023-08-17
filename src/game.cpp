@@ -8,8 +8,9 @@ float SCREEN_WIDTH = 1920.0f;
 float SCREEN_HEIGHT = 1080.0f;
 float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
 
-const size_t MaxQuadsCount = 1000;
+const size_t MaxQuadsCount = 10000;
 
+const size_t FPS_SPAWN = 1;
 struct Vec2
 {
     float x, y;
@@ -28,7 +29,12 @@ struct Vertex
     Vec4 Color;
 };
 
+
 float rotate = 0.0f;
+float RandomNumber(float Min, float Max)
+{
+    return ((float(rand()) / float(RAND_MAX)) * (Max - Min)) + Min;
+}
 
 static Vertex* CreateQuad(Vertex* target, glm::vec3 pos, float size)
 {
@@ -210,24 +216,27 @@ void Game::spawnPlayer()
 
 
 }
-
+int enemysCount = 0;
 void Game::spawnEnemy()
 {
     auto entity = m_entities.addEntity(Enemy);
-    float ex = rand() % 1-0.5f;
-    float ey = rand() % 1-0.5f;
+    float ex = RandomNumber(-1.0f, 1.0f);
+    float ey = RandomNumber(-1.0f, 1.0f);
+
     entity->cTransform = std::make_shared<CTransform>(glm::vec3(ex, ey,0.0f),
                                                      glm::vec3(0.01f, 0.05f,0.0f), 0.0f);
 //    //falta meter las variables del config
     m_lastEnemySpawnTime = m_currentFrame;
 
-    entity->cShape = std::make_shared<CShape>(0.1f);
+    entity->cShape = std::make_shared<CShape>(0.01f);
+    enemysCount++;
+    std::cout << enemysCount << std::endl;
 }
 // Tieene que hacer draw de todo...
 void Game::sRender()
 {
     if (rotate < 6.30f)
-        rotate += 0.25f;
+        rotate += 0.02f;
     else
         rotate = 0.0f;
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -238,7 +247,6 @@ void Game::sRender()
     glm::mat4 model(1.0f);
     m_ourShader->use();
     model =  scale(model, glm::vec3( 1.0f/ratio, 1.0f, 1.0f));
-    glm::mat4 rotation = glm::rotate(model, rotate, glm::vec3(0.0f, 0.0f, 1.0f)); // where x, y, z is axis of rotation (e.g. 0 1 0)
     for (auto e: m_entities.getEntities())
     {
         if(e->cTransform)
@@ -337,7 +345,7 @@ void Game::sCollision()
 void Game::sEnemySpawner()
 {
     // agregar par que cada x frames se meta uno.
-    if ((m_currentFrame-m_lastEnemySpawnTime)%100==0)
+    if ((m_currentFrame-m_lastEnemySpawnTime)%FPS_SPAWN==0)
     {
         spawnEnemy();
     }
