@@ -48,11 +48,12 @@ class Game
     void spawnSmallEnemies(std::shared_ptr<Entity> entity);
     void spawnBullet(std::shared_ptr<Entity> entity, const glm::vec2& mousePos);
     void spawnSpecialWeapon(std::shared_ptr<Entity> entity);
+    void LoadConfig(const std::string& filepath);
 
 public:
     GLFWwindow* m_window;
     std::shared_ptr<Entity> m_player;
-    Game(const std::string & config,const char* vertexPath, const char* fragmentPath);
+    Game(const std::string & config, const char* vertexPath, const char* fragmentPath);
     ~Game();
     void run();
 };

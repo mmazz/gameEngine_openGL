@@ -14,14 +14,17 @@ struct Vec2
 {
     float x, y;
 };
-
+struct Vec3
+{
+    float x, y, z;
+};
 struct Vec4
 {
     float x, y, z, w;
 };
 struct Vertex
 {
-    Vec2 Position;
+    Vec3 Position;
     Vec4 Color;
 };
 
@@ -31,23 +34,41 @@ static Vertex* CreateQuad(Vertex* target, glm::vec3 pos, float size)
 {
     float x = pos[0];
     float y = pos[1];
-    target->Position = {x-size, y-size};
+    target->Position = {x-size, y-size, 1.0f};
     target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
-    target->Position = {x+size, y-size};
+    target->Position = {x+size, y-size, 1.0f};
     target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
-    target->Position = {x+size, y+size};
+    target->Position = {x+size, y+size, 1.0f};
     target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
-    target->Position = {x-size, y+size};
+    target->Position = {x-size, y+size, 1.0f};
     target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
     return target;
+}
+
+static void QuadRotation(Vertex* target, glm::vec3 pos, float angle)
+{
+    glm::mat4 model(1.0f);
+    model = glm::translate(model, pos);
+    model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
+    model = glm::translate(model, -pos);
+
+    for (int i=0; i<4; i++)
+    {
+        target--;
+        glm::vec4 res = model*glm::vec4(glm::vec3(target->Position.x,target->Position.y,target->Position.z), 1.0f);
+        target->Position.x = res[0];
+        target->Position.y = res[1];
+        target->Position.z = res[2];
+    }
+
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
@@ -223,7 +244,7 @@ void Game::sRender()
         if(e->cTransform)
         {
             buffer = CreateQuad(buffer, e->cTransform->m_pos, e->cShape->m_size);
-
+            QuadRotation(buffer, e->cTransform->m_pos, rotate);
             indexCount += 6;
         }
 
@@ -330,6 +351,44 @@ void Game::sEnemySpawner()
 void Game::sUserInput()
 {
 
+}
+
+void Game::LoadConfig(const std::string& filepath)
+{
+    std::ifstream stream(filepath);
+    std::string line, word;
+
+    while (getline(stream, line))
+    {
+        std::stringstream ss(line);
+        ss >> word;
+
+        if ( word == "Player")
+        {
+            ss >> m_playerConfig.SR >> m_playerConfig.CR >> m_playerConfig.FR >>
+                  m_playerConfig.FG >> m_playerConfig.FB >> m_playerConfig.OR >>
+                  m_playerConfig.OG >> m_playerConfig.OB >> m_playerConfig.OT >>
+                  m_playerConfig.V;
+            ss >> m_playerConfig.S;
+        }
+        else if (word == "Enemy" )
+        {
+            ss >> m_enemyConfig.SR   >> m_enemyConfig.CR   >> m_enemyConfig.OR >>
+                  m_enemyConfig.OG   >> m_enemyConfig.OB   >> m_enemyConfig.OT >>
+                  m_enemyConfig.VMIN >> m_enemyConfig.VMAX >> m_enemyConfig.L >>
+                  m_enemyConfig.SI;
+            ss >> m_enemyConfig.SMIN >> m_enemyConfig.SMAX;
+        }
+        else if (word == "Bullet")
+        {
+            ss >> m_bulletConfig.SR >> m_bulletConfig.CR  >> m_bulletConfig.FR >>
+                  m_bulletConfig.FG >> m_bulletConfig.FB  >> m_bulletConfig.OR >>
+                  m_bulletConfig.OG >> m_bulletConfig.OB  >> m_bulletConfig.OT >>
+                  m_bulletConfig.V  >> m_bulletConfig.L;
+            ss >> m_bulletConfig.S;
+        }
+    }
+    std::cout << m_playerConfig.S << " " << m_enemyConfig.SMAX << " " << m_bulletConfig.S << std::endl;
 }
 
 
