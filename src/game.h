@@ -19,7 +19,8 @@ struct BulletConfig { int SR, CR, FR, FG, FB, OR, OG, OB, OT, V, L ; float S; };
 
 class Game
 {
-    //unsigned int m_VBO, m_VAO;
+    GLFWwindow* m_window;
+    std::shared_ptr<Entity> m_player;
     unsigned int m_QuadVB, m_QuadVA, m_QuadIB;
     EntityManager m_entities;
    // font m_font;
@@ -50,10 +51,10 @@ class Game
     void LoadConfig(const std::string& filepath);
 
 public:
-    GLFWwindow* m_window;
-    std::shared_ptr<Entity> m_player;
     Game(const std::string & config, const char* vertexPath, const char* fragmentPath);
     ~Game();
+    GLFWwindow* getWindow();
+    std::shared_ptr<Entity> getPlayer();
     void run();
     void setPaused();
 };
