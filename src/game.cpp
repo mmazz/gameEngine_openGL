@@ -7,12 +7,17 @@ float SCREEN_WIDTH = 1920.0f;
 float SCREEN_HEIGHT = 1080.0f;
 float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
 
+const bool SIMULATION = false;
+
 const size_t MaxQuadsCount = 10000;
 
 const size_t FPS_SPAWN = 10;
 const float ENEMY_SIZE = 0.20f;
 const float FPS_CAP = 60.0f;
-const float ABSORTION = 1.00f;
+const float ABSORTION = 0.2f;
+
+const double maxFPS = 60.0;
+const double maxPeriod = 1.0 / maxFPS;
 
 const glm::vec3 gravity_vec = glm::vec3(0.0f, -40.0f, 0.0f);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
@@ -185,15 +190,23 @@ void Game::run()
     // y otros si como el render.
     const float dt = 1.0f /FPS_CAP;
     setGravity(true);
-    setSimulation(true);
+    setSimulation(SIMULATION);
+    float deltaTime = 0.0f;
+    float lastFrame = 0.0f;
     while (!glfwWindowShouldClose(m_window))
     {
         float currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
         m_entities.update();
 
         if(!m_paused)
         {
-            sEnemySpawner();
+            if( deltaTime >= maxPeriod )
+            {
+                lastFrame = currentFrame;
+                sEnemySpawner();
+            }
+            std::cout << 1/deltaTime << std::endl;
             sCollision();
             sMovement(dt);
         }
@@ -303,35 +316,37 @@ void Game::sMovement(float dt)
     {
         std::shared_ptr<CTransform> enemy = e->cTransform;
         enemy->m_pos_old = enemy->m_pos;
-        if(enemy->m_pos[1]>1.0f-e->cShape->m_sizeY)
-        {
-            enemy->m_velocity[1] = -1*enemy->m_velocity[1]*ABSORTION;
-            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - 1.0f-e->cShape->m_sizeY);
-        }
-        if(enemy->m_pos[1]<-1.0f)
-        {
-            enemy->m_velocity[1] = -1*enemy->m_velocity[1]*ABSORTION;
-            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] + 1.0f);
-        }
-        if(enemy->m_pos[0]<-1.0f*ratio)
-        {
-            enemy->m_velocity[0] = -1*enemy->m_velocity[0]*ABSORTION;
-            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] + 1.0f*ratio);
-        }
-        if(enemy->m_pos[0]>1.0f*ratio-e->cShape->m_sizeX)
-        {
-            enemy->m_velocity[0] = -1*enemy->m_velocity[0]*ABSORTION;
-            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - 1.0f*ratio-e->cShape->m_sizeX);
-        }
-
         enemy->m_pos = enemy->m_pos_old + enemy->m_velocity + m_gravity*dt*dt;
 
-        if(enemy->m_pos[1]<-1.0f)
+        // Quad is center in the bottom left corner.
+        // Ceiling
+        if(enemy->m_pos[1]>1.0f-e->cShape->m_sizeY)
         {
-            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] + 1.0f);
+            enemy->m_velocity[1] = -1.0f*enemy->m_velocity[1]*ABSORTION;
+            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - (1.0f-e->cShape->m_sizeY));
         }
 
-        //enemy->m_pos += enemy->m_velocity;
+        // Floor
+        if(enemy->m_pos[1]<-1.0f)
+        {
+            enemy->m_velocity[1] = -1.0f*enemy->m_velocity[1]*ABSORTION;
+            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - (-1.0f));
+        }
+
+        // Left
+        if(enemy->m_pos[0]<-1.0f*ratio)
+        {
+            enemy->m_velocity[0] = -1.0f*enemy->m_velocity[0]*ABSORTION;
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (-1.0f*ratio));
+        }
+
+        // Right
+        if(enemy->m_pos[0]>1.0f*ratio-e->cShape->m_sizeX)
+        {
+            enemy->m_velocity[0] = -1.0f*enemy->m_velocity[0]*ABSORTION;
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (1.0f*ratio-e->cShape->m_sizeX));
+        }
+
     }
 }
 
@@ -358,18 +373,19 @@ void Game::sCollision()
                     }
                     else
                     {
-                        e1->cTransform->m_velocity[0] = -1*e1->cTransform->m_velocity[0];
-                        e2->cTransform->m_velocity[0] = -1*e2->cTransform->m_velocity[0];
-                        e1->cTransform->m_velocity[1] = -1*e1->cTransform->m_velocity[1];
-                        e2->cTransform->m_velocity[1] = -1*e2->cTransform->m_velocity[1];
+                        e1->cTransform->m_velocity[0] = -1*e1->cTransform->m_velocity[0]*ABSORTION;
+                        e1->cTransform->m_velocity[1] = -1*e1->cTransform->m_velocity[1]*ABSORTION;
+
+                        e2->cTransform->m_velocity[0] = -1*e2->cTransform->m_velocity[0]*ABSORTION;
+                        e2->cTransform->m_velocity[1] = -1*e2->cTransform->m_velocity[1]*ABSORTION;
 
                         size_t loop = 0;
                         while(sCheckCollision(e1, e2)&& loop<10)
                         {
-                            e1->cTransform->m_pos[0] +=e1->cTransform->m_velocity[0];
-                            e2->cTransform->m_pos[0] +=e2->cTransform->m_velocity[0];
-                            e1->cTransform->m_pos[1] +=e1->cTransform->m_velocity[1];
-                            e2->cTransform->m_pos[1] +=e2->cTransform->m_velocity[1];
+                            e1->cTransform->m_pos[0] += e1->cTransform->m_velocity[0];
+                            e2->cTransform->m_pos[0] += e2->cTransform->m_velocity[0];
+                            e1->cTransform->m_pos[1] += e1->cTransform->m_velocity[1];
+                            e2->cTransform->m_pos[1] += e2->cTransform->m_velocity[1];
                             loop++;
                         }
                     }
