@@ -189,8 +189,8 @@ void Game::run()
         if(!m_paused)
         {
             sEnemySpawner();
-            sMovement();
             sCollision();
+            sMovement();
         }
 
         sUserInput();
@@ -232,7 +232,7 @@ void Game::spawnEnemy()
     float ey = RandomNumber(-1.0f, 1.0f);
 
     entity->cTransform = std::make_shared<CTransform>(glm::vec3(ex, ey,0.0f),
-                                                     glm::vec3(0.01f, 0.05f,0.0f), 0.0f);
+                                                     glm::vec3(0.001f, 0.005f,0.0f), 0.0f);
     m_lastEnemySpawnTime = m_currentFrame;
 
     entity->cShape = std::make_shared<CShape>(ENEMY_SIZE, ENEMY_SIZE);
@@ -266,7 +266,7 @@ void Game::sRender()
         if(e->cTransform)
         {   Vec2 Size = Vec2(e->cShape->m_sizeX, e->cShape->m_sizeY);
             buffer = CreateQuad(buffer, e->cTransform->m_pos, Size);
-            QuadRotation(buffer, e->cTransform->m_pos, Size, rotate);
+            //QuadRotation(buffer, e->cTransform->m_pos, Size, rotate);
             indexCount += 6;
         }
 
@@ -285,42 +285,44 @@ void Game::sRender()
 
 void Game::sMovement()
 {
+    std::shared_ptr<CTransform> player = m_player->cTransform;
 
     if(m_player->cInput->Keys[GLFW_KEY_W])
     {
-        if(m_player->cTransform->m_pos[1]<1.0f-m_player->cShape->m_sizeY)
-            m_player->cTransform->m_pos[1] += m_player->cTransform->m_velocity[1];
+        if(player->m_pos[1]<1.0f-m_player->cShape->m_sizeY)
+            player->m_pos[1] += player->m_velocity[1];
     }
     if(m_player->cInput->Keys[GLFW_KEY_S])
     {
-        if(m_player->cTransform->m_pos[1]>-1.0f+m_player->cShape->m_sizeY)
-            m_player->cTransform->m_pos[1] -= m_player->cTransform->m_velocity[1];
+        if(player->m_pos[1]>-1.0f)
+            player->m_pos[1] -= player->m_velocity[1];
     }
     if(m_player->cInput->Keys[GLFW_KEY_A])
     {
-        if(m_player->cTransform->m_pos[0]>-1.0f-m_player->cShape->m_sizeX*ratio)
-            m_player->cTransform->m_pos[0] -= m_player->cTransform->m_velocity[0];
+        if(player->m_pos[0]>-1.0f*ratio)
+            player->m_pos[0] -= player->m_velocity[0];
     }
     if(m_player->cInput->Keys[GLFW_KEY_D])
     {
-        if(m_player->cTransform->m_pos[0]<1.0f+m_player->cShape->m_sizeX*ratio)
-            m_player->cTransform->m_pos[0] +=m_player->cTransform->m_velocity[0];
+        if(player->m_pos[0]<1.0f*ratio-m_player->cShape->m_sizeX)
+            player->m_pos[0] +=player->m_velocity[0];
     }
     for (auto e: m_entities.getEntities(Enemy))
     {
-        if(e->cTransform->m_pos[1]>1.0f-e->cShape->m_sizeY)
-            e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
+        std::shared_ptr<CTransform> enemy = e->cTransform;
+        if(enemy->m_pos[1]>1.0f-e->cShape->m_sizeY)
+            enemy->m_velocity[1] = -1*enemy->m_velocity[1];
 
-        if(e->cTransform->m_pos[1]<-1.0f+e->cShape->m_sizeY)
-            e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
+        if(enemy->m_pos[1]<-1.0f)
+            enemy->m_velocity[1] = -1*enemy->m_velocity[1];
 
-        if(e->cTransform->m_pos[0]<-1.0f-e->cShape->m_sizeX*ratio)
-            e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
+        if(enemy->m_pos[0]<-1.0f*ratio)
+            enemy->m_velocity[0] = -1*enemy->m_velocity[0];
 
-        if(e->cTransform->m_pos[0]>1.0f+e->cShape->m_sizeX*ratio)
-            e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
+        if(enemy->m_pos[0]>1.0f*ratio-e->cShape->m_sizeX)
+            enemy->m_velocity[0] = -1*enemy->m_velocity[0];
 
-        e->cTransform->m_pos += e->cTransform->m_velocity;
+        enemy->m_pos += enemy->m_velocity;
     }
 
 }
@@ -347,9 +349,14 @@ void Game::sCollision()
                     else
                     {
                         e1->cTransform->m_velocity[0] = -1*e1->cTransform->m_velocity[0];
-                        e1->cTransform->m_velocity[0] = -1*e1->cTransform->m_velocity[0];
+                        e1->cTransform->m_pos[0] +=e1->cTransform->m_velocity[0];
+                        e2->cTransform->m_velocity[0] = -1*e2->cTransform->m_velocity[0];
+                        e2->cTransform->m_pos[0] +=e2->cTransform->m_velocity[0];
+
+                        e1->cTransform->m_velocity[1] = -1*e1->cTransform->m_velocity[1];
+                        e1->cTransform->m_pos[1] +=e1->cTransform->m_velocity[1];
                         e2->cTransform->m_velocity[1] = -1*e2->cTransform->m_velocity[1];
-                        e2->cTransform->m_velocity[1] = -1*e2->cTransform->m_velocity[1];
+                        e2->cTransform->m_pos[1] +=e2->cTransform->m_velocity[1];
 
                     }
 
@@ -362,13 +369,15 @@ void Game::sCollision()
 bool Game::sCheckCollision(std::shared_ptr<Entity> one, std::shared_ptr<Entity> two)
 {
     // collision x-axis?
-    bool collisionX = one->cTransform->m_pos[0] + one->cShape->m_sizeX/ratio >= two->cTransform->m_pos[0]&&
-        two->cTransform->m_pos[0] + two->cShape->m_sizeX/ratio >= one->cTransform->m_pos[0];
+    bool collisionX = one->cTransform->m_pos[0] + one->cShape->m_sizeX >= two->cTransform->m_pos[0]&&
+        two->cTransform->m_pos[0] + two->cShape->m_sizeX >= one->cTransform->m_pos[0];
     // collision y-axis?
     bool collisionY = one->cTransform->m_pos[1] + one->cShape->m_sizeY >= two->cTransform->m_pos[1] &&
         two->cTransform->m_pos[1] + two->cShape->m_sizeY >= one->cTransform->m_pos[1];
     // collision only if on both axes
-    return collisionX && collisionY;
+    bool res = collisionX && collisionY;
+ //   std::cout << res << std::endl;
+    return res;
 }
 
 void Game::sUserInput()
