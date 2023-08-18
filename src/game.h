@@ -34,10 +34,13 @@ class Game
     int          m_lastEnemySpawnTime = 0;
     bool         m_paused = false;
     bool         m_running = true;
+    bool         m_simulation = true;
+
+    glm::vec3 m_gravity = glm::vec3(0.0f, -0.1f, 0.0f);
     void init(const std::string& config);
     void sRestart();
 
-    void sMovement();
+    void sMovement(float dt);
     void sUserInput();
     void sLifeSpan();
     void sRender();
@@ -59,5 +62,7 @@ public:
     std::shared_ptr<Entity> getPlayer();
     void run();
     void setPaused();
+    void setGravity(bool gravity);
+    void setSimulation(bool simulation);
 };
 

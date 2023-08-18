@@ -9,10 +9,12 @@ float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
 
 const size_t MaxQuadsCount = 10000;
 
-const size_t FPS_SPAWN = 100;
+const size_t FPS_SPAWN = 10;
 const float ENEMY_SIZE = 0.20f;
+const float FPS_CAP = 60.0f;
+const float ABSORTION = 1.00f;
 
-
+const glm::vec3 gravity_vec = glm::vec3(0.0f, -40.0f, 0.0f);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
@@ -181,6 +183,9 @@ void Game::run()
 {
     // agregar que cuando pausamos algunos system no tienen que andar
     // y otros si como el render.
+    const float dt = 1.0f /FPS_CAP;
+    setGravity(true);
+    setSimulation(true);
     while (!glfwWindowShouldClose(m_window))
     {
         float currentFrame = glfwGetTime();
@@ -190,7 +195,7 @@ void Game::run()
         {
             sEnemySpawner();
             sCollision();
-            sMovement();
+            sMovement(dt);
         }
 
         sUserInput();
@@ -228,11 +233,20 @@ void Game::spawnPlayer()
 void Game::spawnEnemy()
 {
     auto entity = m_entities.addEntity(Enemy);
-    float ex = RandomNumber(-1.0f, 1.0f);
-    float ey = RandomNumber(-1.0f, 1.0f);
+    float ex = RandomNumber(-0.8f, 0.8f);
+    float ey = RandomNumber(-0.8f, 0.8f);
+    float vx = RandomNumber(-0.01f, 0.01f);
+    float vy = RandomNumber(-0.01f, 0.01f);
+    if (m_simulation)
+    {
+        ex = -1.75f;
+        ey = 0.8f;
+        vx = 0.005f;
+        vy = 0.0f;
+    }
 
     entity->cTransform = std::make_shared<CTransform>(glm::vec3(ex, ey,0.0f),
-                                                     glm::vec3(0.001f, 0.005f,0.0f), 0.0f);
+                                                     glm::vec3(vx, vy,0.0f), 0.0f);
     m_lastEnemySpawnTime = m_currentFrame;
 
     entity->cShape = std::make_shared<CShape>(ENEMY_SIZE, ENEMY_SIZE);
@@ -283,53 +297,49 @@ void Game::sRender()
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
 }
 
-void Game::sMovement()
+void Game::sMovement(float dt)
 {
-    std::shared_ptr<CTransform> player = m_player->cTransform;
-
-    if(m_player->cInput->Keys[GLFW_KEY_W])
-    {
-        if(player->m_pos[1]<1.0f-m_player->cShape->m_sizeY)
-            player->m_pos[1] += player->m_velocity[1];
-    }
-    if(m_player->cInput->Keys[GLFW_KEY_S])
-    {
-        if(player->m_pos[1]>-1.0f)
-            player->m_pos[1] -= player->m_velocity[1];
-    }
-    if(m_player->cInput->Keys[GLFW_KEY_A])
-    {
-        if(player->m_pos[0]>-1.0f*ratio)
-            player->m_pos[0] -= player->m_velocity[0];
-    }
-    if(m_player->cInput->Keys[GLFW_KEY_D])
-    {
-        if(player->m_pos[0]<1.0f*ratio-m_player->cShape->m_sizeX)
-            player->m_pos[0] +=player->m_velocity[0];
-    }
     for (auto e: m_entities.getEntities(Enemy))
     {
         std::shared_ptr<CTransform> enemy = e->cTransform;
+        enemy->m_pos_old = enemy->m_pos;
         if(enemy->m_pos[1]>1.0f-e->cShape->m_sizeY)
-            enemy->m_velocity[1] = -1*enemy->m_velocity[1];
+        {
+            enemy->m_velocity[1] = -1*enemy->m_velocity[1]*ABSORTION;
+            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - 1.0f-e->cShape->m_sizeY);
+        }
+        if(enemy->m_pos[1]<-1.0f)
+        {
+            enemy->m_velocity[1] = -1*enemy->m_velocity[1]*ABSORTION;
+            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] + 1.0f);
+        }
+        if(enemy->m_pos[0]<-1.0f*ratio)
+        {
+            enemy->m_velocity[0] = -1*enemy->m_velocity[0]*ABSORTION;
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] + 1.0f*ratio);
+        }
+        if(enemy->m_pos[0]>1.0f*ratio-e->cShape->m_sizeX)
+        {
+            enemy->m_velocity[0] = -1*enemy->m_velocity[0]*ABSORTION;
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - 1.0f*ratio-e->cShape->m_sizeX);
+        }
+
+        enemy->m_pos = enemy->m_pos_old + enemy->m_velocity + m_gravity*dt*dt;
 
         if(enemy->m_pos[1]<-1.0f)
-            enemy->m_velocity[1] = -1*enemy->m_velocity[1];
+        {
+            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] + 1.0f);
+        }
 
-        if(enemy->m_pos[0]<-1.0f*ratio)
-            enemy->m_velocity[0] = -1*enemy->m_velocity[0];
-
-        if(enemy->m_pos[0]>1.0f*ratio-e->cShape->m_sizeX)
-            enemy->m_velocity[0] = -1*enemy->m_velocity[0];
-
-        enemy->m_pos += enemy->m_velocity;
+        //enemy->m_pos += enemy->m_velocity;
     }
-
 }
 
 void Game::sRestart()
 {
-
+    m_player->cTransform->m_pos = m_player->cTransform->m_pos_init;
+    m_player->cTransform->m_velocity = m_player->cTransform->m_velocity_init;
+    m_player->cTransform->m_pos_old = m_player->cTransform->m_pos- m_player->cTransform->m_velocity;
 }
 
 void Game::sCollision()
@@ -349,15 +359,19 @@ void Game::sCollision()
                     else
                     {
                         e1->cTransform->m_velocity[0] = -1*e1->cTransform->m_velocity[0];
-                        e1->cTransform->m_pos[0] +=e1->cTransform->m_velocity[0];
                         e2->cTransform->m_velocity[0] = -1*e2->cTransform->m_velocity[0];
-                        e2->cTransform->m_pos[0] +=e2->cTransform->m_velocity[0];
-
                         e1->cTransform->m_velocity[1] = -1*e1->cTransform->m_velocity[1];
-                        e1->cTransform->m_pos[1] +=e1->cTransform->m_velocity[1];
                         e2->cTransform->m_velocity[1] = -1*e2->cTransform->m_velocity[1];
-                        e2->cTransform->m_pos[1] +=e2->cTransform->m_velocity[1];
 
+                        size_t loop = 0;
+                        while(sCheckCollision(e1, e2)&& loop<10)
+                        {
+                            e1->cTransform->m_pos[0] +=e1->cTransform->m_velocity[0];
+                            e2->cTransform->m_pos[0] +=e2->cTransform->m_velocity[0];
+                            e1->cTransform->m_pos[1] +=e1->cTransform->m_velocity[1];
+                            e2->cTransform->m_pos[1] +=e2->cTransform->m_velocity[1];
+                            loop++;
+                        }
                     }
 
                 }
@@ -382,9 +396,42 @@ bool Game::sCheckCollision(std::shared_ptr<Entity> one, std::shared_ptr<Entity> 
 
 void Game::sUserInput()
 {
+    std::shared_ptr<CTransform> player = m_player->cTransform;
 
+    if(m_player->cInput->Keys[GLFW_KEY_W])
+    {
+        if(player->m_pos[1]<1.0f-m_player->cShape->m_sizeY)
+            player->m_pos[1] += player->m_velocity[1];
+    }
+    if(m_player->cInput->Keys[GLFW_KEY_S])
+    {
+        if(player->m_pos[1]>-1.0f)
+            player->m_pos[1] -= player->m_velocity[1];
+    }
+    if(m_player->cInput->Keys[GLFW_KEY_A])
+    {
+        if(player->m_pos[0]>-1.0f*ratio)
+            player->m_pos[0] -= player->m_velocity[0];
+    }
+    if(m_player->cInput->Keys[GLFW_KEY_D])
+    {
+        if(player->m_pos[0]<1.0f*ratio-m_player->cShape->m_sizeX)
+            player->m_pos[0] +=player->m_velocity[0];
+    }
 }
 
+void Game::setGravity(bool gravity)
+{
+    if(gravity)
+        m_gravity = gravity_vec;
+    else
+        m_gravity = glm::vec3(0.0f, 0.0f, 0.0f);
+}
+
+void Game::setSimulation(bool simulation)
+{
+    m_simulation = simulation;
+}
 void Game::spawnSmallEnemies(std::shared_ptr<Entity> e)
 {
 

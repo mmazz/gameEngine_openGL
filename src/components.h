@@ -15,11 +15,15 @@ class CTransform
 {
 public:
     glm::vec3 m_pos = {0.0f, 0.0f, 0.0f};
+    glm::vec3 m_pos_init = {0.0f, 0.0f, 0.0f};
+    glm::vec3 m_pos_old = {0.0f, 0.0f, 0.0f};
     glm::vec3 m_velocity = {0.0f, 0.0f, 0.0f};
+    glm::vec3 m_velocity_init = {0.0f, 0.0f, 0.0f};
+
     float angle = 0;
 
     CTransform(const glm::vec3& p, const glm::vec3& v, float a)
-        :m_pos(p), m_velocity(v), angle(a) {}
+        :m_pos(p), m_pos_init(p),m_pos_old(p-v), m_velocity(v),  m_velocity_init(v), angle(a) {}
 };
 
 
