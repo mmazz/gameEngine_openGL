@@ -35,6 +35,7 @@ class Game
     bool         m_paused = false;
     bool         m_running = true;
     void init(const std::string& config);
+    void sRestart();
 
     void sMovement();
     void sUserInput();
@@ -49,6 +50,7 @@ class Game
     void spawnBullet(std::shared_ptr<Entity> entity, const glm::vec2& mousePos);
     void spawnSpecialWeapon(std::shared_ptr<Entity> entity);
     void LoadConfig(const std::string& filepath);
+    bool sCheckCollision(std::shared_ptr<Entity> one, std::shared_ptr<Entity> two);
 
 public:
     Game(const std::string & config, const char* vertexPath, const char* fragmentPath);

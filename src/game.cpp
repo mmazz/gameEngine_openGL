@@ -9,7 +9,9 @@ float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
 
 const size_t MaxQuadsCount = 10000;
 
-const size_t FPS_SPAWN = 1;
+const size_t FPS_SPAWN = 100;
+const float ENEMY_SIZE = 0.20f;
+
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
@@ -47,43 +49,46 @@ float RandomNumber(float Min, float Max)
     return ((float(rand()) / float(RAND_MAX)) * (Max - Min)) + Min;
 }
 
-static Vertex* CreateQuad(Vertex* target, glm::vec3 pos, float size)
+static Vertex* CreateQuad(Vertex* target, glm::vec3 pos, Vec2 size)
 {
     float x = pos[0];
     float y = pos[1];
-    target->Position = {x-size, y-size, 1.0f};
+    target->Position = {x, y, 1.0f};
     target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
-    target->Position = {x+size, y-size, 1.0f};
+    target->Position = {x+size.x, y, 1.0f};
     target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
-    target->Position = {x+size, y+size, 1.0f};
+    target->Position = {x+size.x, y+size.y, 1.0f};
     target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
-    target->Position = {x-size, y+size, 1.0f};
+    target->Position = {x, y+size.y, 1.0f};
     target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
     target++;
 
     return target;
 }
 
-static void QuadRotation(Vertex* target, glm::vec3 pos, float angle)
+static void QuadRotation(Vertex* target, glm::vec3 pos, Vec2 size, float angle)
 {
     glm::mat4 model(1.0f);
     model = glm::translate(model, pos);
+    model = glm::translate(model, glm::vec3(0.5f*size.x, 0.5f*size.y, 0.0f));
     model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
     model = glm::translate(model, -pos);
+    model = glm::translate(model, glm::vec3(-0.5f*size.x, -0.5f*size.y, 0.0f));
 
     for (int i=0; i<4; i++)
     {
         target--;
-        glm::vec4 res = model*glm::vec4(glm::vec3(target->Position.x,target->Position.y,target->Position.z), 1.0f);
-        target->Position.x = res[0];
-        target->Position.y = res[1];
-        target->Position.z = res[2];
+        Vec3* position = &target->Position;
+        glm::vec4 res = model*glm::vec4(glm::vec3(position->x, position->y, position->z), 1.0f);
+        position->x = res[0];
+        position->y = res[1];
+        position->z = res[2];
     }
 
 }
@@ -230,7 +235,7 @@ void Game::spawnEnemy()
                                                      glm::vec3(0.01f, 0.05f,0.0f), 0.0f);
     m_lastEnemySpawnTime = m_currentFrame;
 
-    entity->cShape = std::make_shared<CShape>(0.01f);
+    entity->cShape = std::make_shared<CShape>(ENEMY_SIZE, ENEMY_SIZE);
 }
 
 void Game::sEnemySpawner()
@@ -259,9 +264,9 @@ void Game::sRender()
     for (auto e: m_entities.getEntities())
     {
         if(e->cTransform)
-        {
-            buffer = CreateQuad(buffer, e->cTransform->m_pos, e->cShape->m_size);
-            QuadRotation(buffer, e->cTransform->m_pos, rotate);
+        {   Vec2 Size = Vec2(e->cShape->m_sizeX, e->cShape->m_sizeY);
+            buffer = CreateQuad(buffer, e->cTransform->m_pos, Size);
+            QuadRotation(buffer, e->cTransform->m_pos, Size, rotate);
             indexCount += 6;
         }
 
@@ -283,36 +288,36 @@ void Game::sMovement()
 
     if(m_player->cInput->Keys[GLFW_KEY_W])
     {
-        if(m_player->cTransform->m_pos[1]<1.0f-m_player->cShape->m_size)
+        if(m_player->cTransform->m_pos[1]<1.0f-m_player->cShape->m_sizeY)
             m_player->cTransform->m_pos[1] += m_player->cTransform->m_velocity[1];
     }
     if(m_player->cInput->Keys[GLFW_KEY_S])
     {
-        if(m_player->cTransform->m_pos[1]>-1.0f+m_player->cShape->m_size)
+        if(m_player->cTransform->m_pos[1]>-1.0f+m_player->cShape->m_sizeY)
             m_player->cTransform->m_pos[1] -= m_player->cTransform->m_velocity[1];
     }
     if(m_player->cInput->Keys[GLFW_KEY_A])
     {
-        if(m_player->cTransform->m_pos[0]>-1.0f-m_player->cShape->m_size*ratio)
+        if(m_player->cTransform->m_pos[0]>-1.0f-m_player->cShape->m_sizeX*ratio)
             m_player->cTransform->m_pos[0] -= m_player->cTransform->m_velocity[0];
     }
     if(m_player->cInput->Keys[GLFW_KEY_D])
     {
-        if(m_player->cTransform->m_pos[0]<1.0f+m_player->cShape->m_size*ratio)
+        if(m_player->cTransform->m_pos[0]<1.0f+m_player->cShape->m_sizeX*ratio)
             m_player->cTransform->m_pos[0] +=m_player->cTransform->m_velocity[0];
     }
     for (auto e: m_entities.getEntities(Enemy))
     {
-        if(e->cTransform->m_pos[1]>1.0f-e->cShape->m_size)
+        if(e->cTransform->m_pos[1]>1.0f-e->cShape->m_sizeY)
             e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
 
-        if(e->cTransform->m_pos[1]<-1.0f+e->cShape->m_size)
+        if(e->cTransform->m_pos[1]<-1.0f+e->cShape->m_sizeY)
             e->cTransform->m_velocity[1] = -1*e->cTransform->m_velocity[1];
 
-        if(e->cTransform->m_pos[0]<-1.0f-e->cShape->m_size*ratio)
+        if(e->cTransform->m_pos[0]<-1.0f-e->cShape->m_sizeX*ratio)
             e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
 
-        if(e->cTransform->m_pos[0]>1.0f+e->cShape->m_size*ratio)
+        if(e->cTransform->m_pos[0]>1.0f+e->cShape->m_sizeX*ratio)
             e->cTransform->m_velocity[0] = -1*e->cTransform->m_velocity[0];
 
         e->cTransform->m_pos += e->cTransform->m_velocity;
@@ -320,9 +325,50 @@ void Game::sMovement()
 
 }
 
-void Game::sCollision()
+void Game::sRestart()
 {
 
+}
+
+void Game::sCollision()
+{
+    for ( auto e1: m_entities.getEntities())
+    {
+        for ( auto e2: m_entities.getEntities())
+        {
+            if(e1!=e2)
+            {
+                if(sCheckCollision(e1, e2))
+                {
+                    if(m_player==e1 || m_player==e2)
+                    {
+                        sRestart();
+                    }
+                    else
+                    {
+                        e1->cTransform->m_velocity[0] = -1*e1->cTransform->m_velocity[0];
+                        e1->cTransform->m_velocity[0] = -1*e1->cTransform->m_velocity[0];
+                        e2->cTransform->m_velocity[1] = -1*e2->cTransform->m_velocity[1];
+                        e2->cTransform->m_velocity[1] = -1*e2->cTransform->m_velocity[1];
+
+                    }
+
+                }
+            }
+        }
+    }
+}
+
+bool Game::sCheckCollision(std::shared_ptr<Entity> one, std::shared_ptr<Entity> two)
+{
+    // collision x-axis?
+    bool collisionX = one->cTransform->m_pos[0] + one->cShape->m_sizeX/ratio >= two->cTransform->m_pos[0]&&
+        two->cTransform->m_pos[0] + two->cShape->m_sizeX/ratio >= one->cTransform->m_pos[0];
+    // collision y-axis?
+    bool collisionY = one->cTransform->m_pos[1] + one->cShape->m_sizeY >= two->cTransform->m_pos[1] &&
+        two->cTransform->m_pos[1] + two->cShape->m_sizeY >= one->cTransform->m_pos[1];
+    // collision only if on both axes
+    return collisionX && collisionY;
 }
 
 void Game::sUserInput()
