@@ -15,7 +15,7 @@ Game game(config,"shaders/shader.vs", "shaders/shader.fs");
 int main()
 {
 
-    glfwSetKeyCallback(game.m_window, key_callback);
+    glfwSetKeyCallback(game.getWindow(), key_callback);
 
     game.run();
 
@@ -35,10 +35,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key >= 0 && key < 1024)
     {
         if (action == GLFW_PRESS)
-            game.m_player->cInput->Keys[key] = true;
+            game.getPlayer()->cInput->Keys[key] = true;
            // game.Keys[key] = true;
         else if (action == GLFW_RELEASE)
-            game.m_player->cInput->Keys[key] = false;
+            game.getPlayer()->cInput->Keys[key] = false;
            // game.Keys[key] = false;
     }
 }

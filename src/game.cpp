@@ -99,9 +99,9 @@ Game::Game(const std::string& config, const char* vertexPath, const char* fragme
 
     glfwWindowHint(GLFW_RESIZABLE, false);
 
-    m_window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "MatiDo", nullptr, nullptr);
-    glfwMakeContextCurrent(m_window);
-    glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
+    this->m_window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "MatiDo", nullptr, nullptr);
+    glfwMakeContextCurrent(this->m_window);
+    glfwSetFramebufferSizeCallback(this->m_window, framebuffer_size_callback);
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
@@ -117,6 +117,16 @@ Game::Game(const std::string& config, const char* vertexPath, const char* fragme
 Game::~Game()
 {
     delete m_ourShader;
+}
+
+GLFWwindow* Game::getWindow()
+{
+    return m_window;
+}
+
+std::shared_ptr<Entity> Game::getPlayer()
+{
+    return m_player;
 }
 
 void Game::init(const std::string& path)
