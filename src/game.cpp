@@ -11,8 +11,10 @@ const bool SIMULATION = false;
 
 const size_t MaxQuadsCount = 10000;
 
-const size_t FPS_SPAWN = 10;
 const float ENEMY_SIZE = 0.20f;
+const float BULLET_SIZE = 0.01f;
+
+const size_t FPS_SPAWN = 10;
 const float FPS_CAP = 60.0f;
 const float ABSORTION = 0.2f;
 
@@ -206,7 +208,7 @@ void Game::run()
                 lastFrame = currentFrame;
                 sEnemySpawner();
             }
-            std::cout << 1/deltaTime << std::endl;
+           // std::cout << 1/deltaTime << std::endl;
             sCollision();
             sMovement(dt);
         }
@@ -348,6 +350,42 @@ void Game::sMovement(float dt)
         }
 
     }
+    for (auto e: m_entities.getEntities(Bullet))
+    {
+        std::shared_ptr<CTransform> enemy = e->cTransform;
+        enemy->m_pos_old = enemy->m_pos;
+        enemy->m_pos = enemy->m_pos_old + enemy->m_velocity + m_gravity*dt*dt;
+
+        // Quad is center in the bottom left corner.
+        // Ceiling
+        if(enemy->m_pos[1]>1.0f-e->cShape->m_sizeY)
+        {
+            enemy->m_velocity[1] = -1.0f*enemy->m_velocity[1]*ABSORTION;
+            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - (1.0f-e->cShape->m_sizeY));
+        }
+
+        // Floor
+        if(enemy->m_pos[1]<-1.0f)
+        {
+            enemy->m_velocity[1] = -1.0f*enemy->m_velocity[1]*ABSORTION;
+            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - (-1.0f));
+        }
+
+        // Left
+        if(enemy->m_pos[0]<-1.0f*ratio)
+        {
+            enemy->m_velocity[0] = -1.0f*enemy->m_velocity[0]*ABSORTION;
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (-1.0f*ratio));
+        }
+
+        // Right
+        if(enemy->m_pos[0]>1.0f*ratio-e->cShape->m_sizeX)
+        {
+            enemy->m_velocity[0] = -1.0f*enemy->m_velocity[0]*ABSORTION;
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (1.0f*ratio-e->cShape->m_sizeX));
+        }
+
+    }
 }
 
 void Game::sRestart()
@@ -361,7 +399,7 @@ void Game::sCollision()
 {
     for ( auto e1: m_entities.getEntities())
     {
-        for ( auto e2: m_entities.getEntities())
+        for (auto e2: m_entities.getEntities())
         {
             if(e1!=e2)
             {
@@ -371,21 +409,28 @@ void Game::sCollision()
                     {
                         sRestart();
                     }
+                    // fijarse si es bullet enemy
                     else
                     {
-                        e1->cTransform->m_velocity[0] = -1*e1->cTransform->m_velocity[0]*ABSORTION;
-                        e1->cTransform->m_velocity[1] = -1*e1->cTransform->m_velocity[1]*ABSORTION;
+                        float temp = e1->cTransform->m_velocity[0];
+                        glm::vec3 diff_pos = e1->cTransform->m_pos - e2->cTransform->m_pos;
+                        glm::vec3 diff_vel = e1->cTransform->m_velocity - e2->cTransform->m_velocity;
+                        e1->cTransform->m_pos[0] -= e1->cTransform->m_velocity[0];
+                        e1->cTransform->m_velocity[0] = e2->cTransform->m_velocity[0]*ABSORTION;
+                        e2->cTransform->m_velocity[0] = temp*ABSORTION;
 
-                        e2->cTransform->m_velocity[0] = -1*e2->cTransform->m_velocity[0]*ABSORTION;
-                        e2->cTransform->m_velocity[1] = -1*e2->cTransform->m_velocity[1]*ABSORTION;
+                        temp = e1->cTransform->m_velocity[1] ;
+                        e1->cTransform->m_pos[1] -= e1->cTransform->m_velocity[1];
+                        e1->cTransform->m_velocity[1] = e2->cTransform->m_velocity[1]*ABSORTION;
+                        e2->cTransform->m_velocity[1] = temp*ABSORTION;
 
                         size_t loop = 0;
                         while(sCheckCollision(e1, e2)&& loop<10)
                         {
-                            e1->cTransform->m_pos[0] += e1->cTransform->m_velocity[0];
-                            e2->cTransform->m_pos[0] += e2->cTransform->m_velocity[0];
-                            e1->cTransform->m_pos[1] += e1->cTransform->m_velocity[1];
-                            e2->cTransform->m_pos[1] += e2->cTransform->m_velocity[1];
+                            e1->cTransform->m_pos[0] -= e1->cTransform->m_velocity[0];
+                            e2->cTransform->m_pos[0] -= e2->cTransform->m_velocity[0];
+                            e1->cTransform->m_pos[1] -= e1->cTransform->m_velocity[1];
+                            e2->cTransform->m_pos[1] -= e2->cTransform->m_velocity[1];
                             loop++;
                         }
                     }
@@ -434,6 +479,15 @@ void Game::sUserInput()
         if(player->m_pos[0]<1.0f*ratio-m_player->cShape->m_sizeX)
             player->m_pos[0] +=player->m_velocity[0];
     }
+    if(m_player->cInput->Keys[GLFW_MOUSE_BUTTON_LEFT])
+    {
+        double xpos, ypos;
+        glfwGetCursorPos(m_window, &xpos, &ypos );
+        xpos = xpos/SCREEN_WIDTH;
+        ypos = ypos/SCREEN_HEIGHT;
+        glm::vec2 mousePos = glm::vec2(xpos, ypos);
+        spawnBullet(m_player, mousePos);
+    }
 }
 
 void Game::setGravity(bool gravity)
@@ -455,7 +509,15 @@ void Game::spawnSmallEnemies(std::shared_ptr<Entity> e)
 
 void Game::spawnBullet(std::shared_ptr<Entity> e, const glm::vec2& target)
 {
+    auto entity = m_entities.addEntity(Bullet);
 
+    glm::vec3 origin = e->cTransform->m_pos;
+    glm::vec3 dir = origin - glm::vec3(target, 0.0f);
+    entity->cTransform = std::make_shared<CTransform>(glm::vec3(origin.x, origin.y ,0.0f),
+                                                     dir, 0.0f);
+    m_lastEnemySpawnTime = m_currentFrame;
+
+    entity->cShape = std::make_shared<CShape>(BULLET_SIZE, BULLET_SIZE);
 }
 
 // Not used for now.
