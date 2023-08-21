@@ -8,20 +8,21 @@ float SCREEN_HEIGHT = 1080.0f;
 float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
 
 const bool SIMULATION = false;
+const bool GRAVITY = true;
 
 const size_t MaxQuadsCount = 10000;
 
 const float ENEMY_SIZE = 0.20f;
 const float BULLET_SIZE = 0.01f;
 
-const size_t FPS_SPAWN = 10;
+const size_t FPS_SPAWN = 100;
 const float FPS_CAP = 60.0f;
 const float ABSORTION = 0.2f;
 
 const double maxFPS = 60.0;
 const double maxPeriod = 1.0 / maxFPS;
 
-const glm::vec3 gravity_vec = glm::vec3(0.0f, -40.0f, 0.0f);
+const glm::vec3 gravity_vec = glm::vec3(0.0f, -20.0f, 0.0f);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
@@ -191,7 +192,7 @@ void Game::run()
     // agregar que cuando pausamos algunos system no tienen que andar
     // y otros si como el render.
     const float dt = 1.0f /FPS_CAP;
-    setGravity(true);
+    setGravity(GRAVITY);
     setSimulation(SIMULATION);
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
@@ -312,79 +313,60 @@ void Game::sRender()
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
 }
 
-void Game::sMovement(float dt)
+//Verlet integration
+void Game::sWallConstrains(std::shared_ptr<Entity> entity)
 {
-    for (auto e: m_entities.getEntities(Enemy))
-    {
-        std::shared_ptr<CTransform> enemy = e->cTransform;
-        enemy->m_pos_old = enemy->m_pos;
-        enemy->m_pos = enemy->m_pos_old + enemy->m_velocity + m_gravity*dt*dt;
-
         // Quad is center in the bottom left corner.
+        std::shared_ptr<CTransform> enemy = entity->cTransform;
         // Ceiling
-        if(enemy->m_pos[1]>1.0f-e->cShape->m_sizeY)
+        if(enemy->m_pos[1]>1.0f-entity->cShape->m_sizeY)
         {
-            enemy->m_velocity[1] = -1.0f*enemy->m_velocity[1]*ABSORTION;
-            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - (1.0f-e->cShape->m_sizeY));
+            enemy->m_pos[1] = enemy->m_pos[1] - (enemy->m_pos[1] - (1.0f-entity->cShape->m_sizeY));
+            enemy->m_pos_old[1] = enemy->m_pos[1] + enemy->m_velocity[1];
+            enemy->m_velocity = (enemy->m_pos - enemy->m_pos_old)*ABSORTION;
         }
 
         // Floor
         if(enemy->m_pos[1]<-1.0f)
         {
-            enemy->m_velocity[1] = -1.0f*enemy->m_velocity[1]*ABSORTION;
-            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - (-1.0f));
+
+            enemy->m_pos[1] = enemy->m_pos[1] - (enemy->m_pos[1] - (-1.0f));
+            enemy->m_pos_old[1] = enemy->m_pos[1] + enemy->m_velocity[1];
+            enemy->m_velocity = (enemy->m_pos - enemy->m_pos_old)*ABSORTION;
         }
 
         // Left
         if(enemy->m_pos[0]<-1.0f*ratio)
         {
-            enemy->m_velocity[0] = -1.0f*enemy->m_velocity[0]*ABSORTION;
             enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (-1.0f*ratio));
+            enemy->m_pos_old[0] = enemy->m_pos[0] + enemy->m_velocity[0];
+            enemy->m_velocity = (enemy->m_pos - enemy->m_pos_old)*ABSORTION;
         }
 
         // Right
-        if(enemy->m_pos[0]>1.0f*ratio-e->cShape->m_sizeX)
+        if(enemy->m_pos[0]>1.0f*ratio-entity->cShape->m_sizeX)
         {
-            enemy->m_velocity[0] = -1.0f*enemy->m_velocity[0]*ABSORTION;
-            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (1.0f*ratio-e->cShape->m_sizeX));
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (1.0f*ratio-entity->cShape->m_sizeX));
+            enemy->m_pos_old[0] = enemy->m_pos[0] + enemy->m_velocity[0];
+            enemy->m_velocity = (enemy->m_pos - enemy->m_pos_old)*ABSORTION;
         }
-
+}
+void Game::sMovement(float dt)
+{
+    for (auto e: m_entities.getEntities(Enemy))
+    {
+        std::shared_ptr<CTransform> enemy = e->cTransform;
+        enemy->m_velocity = enemy->m_pos - enemy->m_pos_old;
+        enemy->m_pos_old = enemy->m_pos;
+        enemy->m_pos += enemy->m_velocity + m_gravity*dt*dt;
+        sWallConstrains(e);
     }
     for (auto e: m_entities.getEntities(Bullet))
     {
         std::shared_ptr<CTransform> enemy = e->cTransform;
         enemy->m_pos_old = enemy->m_pos;
         enemy->m_pos = enemy->m_pos_old + enemy->m_velocity + m_gravity*dt*dt;
-
-        // Quad is center in the bottom left corner.
-        // Ceiling
-        if(enemy->m_pos[1]>1.0f-e->cShape->m_sizeY)
-        {
-            enemy->m_velocity[1] = -1.0f*enemy->m_velocity[1]*ABSORTION;
-            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - (1.0f-e->cShape->m_sizeY));
-        }
-
-        // Floor
-        if(enemy->m_pos[1]<-1.0f)
-        {
-            enemy->m_velocity[1] = -1.0f*enemy->m_velocity[1]*ABSORTION;
-            enemy->m_pos[1] = enemy->m_pos[1] - 2*(enemy->m_pos[1] - (-1.0f));
-        }
-
-        // Left
-        if(enemy->m_pos[0]<-1.0f*ratio)
-        {
-            enemy->m_velocity[0] = -1.0f*enemy->m_velocity[0]*ABSORTION;
-            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (-1.0f*ratio));
-        }
-
-        // Right
-        if(enemy->m_pos[0]>1.0f*ratio-e->cShape->m_sizeX)
-        {
-            enemy->m_velocity[0] = -1.0f*enemy->m_velocity[0]*ABSORTION;
-            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (1.0f*ratio-e->cShape->m_sizeX));
-        }
-
+        sWallConstrains(e);
     }
 }
 
@@ -394,6 +376,24 @@ void Game::sRestart()
     m_player->cTransform->m_velocity = m_player->cTransform->m_velocity_init;
     m_player->cTransform->m_pos_old = m_player->cTransform->m_pos- m_player->cTransform->m_velocity;
 }
+
+void Game::sResolveCollision(std::shared_ptr<Entity> e1, std::shared_ptr<Entity> e2)
+{
+    glm::vec3 vrel = e1->cTransform->m_velocity - e2->cTransform->m_velocity;
+    glm::vec3 posrel = e1->cTransform->m_pos - e2->cTransform->m_pos;
+    glm::vec3 normal(1.0f);
+    if ( std::abs(posrel[0]) > std::abs(posrel[1]))
+        normal  = glm::vec3(1.0f, 0.0f, 0.0f);
+    else
+        normal = glm::vec3(0.0f, 1.0f, 0.0f);
+
+    float impulseMagnitud = ABSORTION*(glm::dot(vrel,normal))/2.0f;
+    glm::vec3 Jn = impulseMagnitud*normal;
+
+    e1->cTransform->m_pos += e1->cTransform->m_velocity + Jn;
+    e2->cTransform->m_pos += e2->cTransform->m_velocity - Jn;
+}
+
 
 void Game::sCollision()
 {
@@ -412,27 +412,7 @@ void Game::sCollision()
                     // fijarse si es bullet enemy
                     else
                     {
-                        float temp = e1->cTransform->m_velocity[0];
-                        glm::vec3 diff_pos = e1->cTransform->m_pos - e2->cTransform->m_pos;
-                        glm::vec3 diff_vel = e1->cTransform->m_velocity - e2->cTransform->m_velocity;
-                        e1->cTransform->m_pos[0] -= e1->cTransform->m_velocity[0];
-                        e1->cTransform->m_velocity[0] = e2->cTransform->m_velocity[0]*ABSORTION;
-                        e2->cTransform->m_velocity[0] = temp*ABSORTION;
-
-                        temp = e1->cTransform->m_velocity[1] ;
-                        e1->cTransform->m_pos[1] -= e1->cTransform->m_velocity[1];
-                        e1->cTransform->m_velocity[1] = e2->cTransform->m_velocity[1]*ABSORTION;
-                        e2->cTransform->m_velocity[1] = temp*ABSORTION;
-
-                        size_t loop = 0;
-                        while(sCheckCollision(e1, e2)&& loop<10)
-                        {
-                            e1->cTransform->m_pos[0] -= e1->cTransform->m_velocity[0];
-                            e2->cTransform->m_pos[0] -= e2->cTransform->m_velocity[0];
-                            e1->cTransform->m_pos[1] -= e1->cTransform->m_velocity[1];
-                            e2->cTransform->m_pos[1] -= e2->cTransform->m_velocity[1];
-                            loop++;
-                        }
+                        sResolveCollision(e1, e2);
                     }
 
                 }
