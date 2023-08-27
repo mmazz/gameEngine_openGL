@@ -14,6 +14,7 @@ class EntityManager
     // Esto es para no tener iterator invalidation, basicamente
     // guardo la info y hago los cambiso al principio del siguiente frame
     EntityVec m_entitiesToAdd;
+    EntityVec m_entitiesToDelete;
     EntityMap m_entityMap;
     // para nunca repetir el id.
     size_t    m_totalEntities = 0;
@@ -24,6 +25,8 @@ public:
     EntityManager();
     void update();
     std::shared_ptr<Entity> addEntity(const enum tag& tag);
+
+    void addDeadEntity(std::shared_ptr<Entity> e);
     const EntityVec& getEntities();
     const EntityVec& getEntities(const enum tag& tag);
 };

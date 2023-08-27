@@ -2,22 +2,24 @@
 #include <GLFW/glfw3.h>
 #include <cstdint>
 #include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/quaternion_geometric.hpp>
 
 float SCREEN_WIDTH = 1920.0f;
 float SCREEN_HEIGHT = 1080.0f;
 float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
 
 const bool SIMULATION = false;
-const bool GRAVITY = true;
+const bool GRAVITY = false;
 
 const size_t MaxQuadsCount = 10000;
 
 const float ENEMY_SIZE = 0.20f;
-const float BULLET_SIZE = 0.01f;
+const float BULLET_SIZE = 0.04f;
+const float BULLET_SPEED = 0.04f;
 
 const size_t FPS_SPAWN = 100;
 const float FPS_CAP = 60.0f;
-const float ABSORTION = 0.2f;
+const float ABSORTION = 0.8f;
 
 const double maxFPS = 60.0;
 const double maxPeriod = 1.0 / maxFPS;
@@ -104,7 +106,13 @@ static void QuadRotation(Vertex* target, glm::vec3 pos, Vec2 size, float angle)
 }
 
 
-
+static glm::vec3 centerQuad(std::shared_ptr<Entity> e)
+{
+    glm::vec3 center(0.0f);
+    center[0] = e->cTransform->m_pos[0] + e->cShape->m_size[0]/2.0f;
+    center[1] = e->cTransform->m_pos[1] + e->cShape->m_size[1]/2.0f;
+    return center;
+}
 Game::Game(const std::string& config, const char* vertexPath, const char* fragmentPath)
 {
     glfwInit();
@@ -294,7 +302,7 @@ void Game::sRender()
     for (auto e: m_entities.getEntities())
     {
         if(e->cTransform)
-        {   Vec2 Size = Vec2(e->cShape->m_sizeX, e->cShape->m_sizeY);
+        {   Vec2 Size = Vec2(e->cShape->m_size[0], e->cShape->m_size[1]);
             buffer = CreateQuad(buffer, e->cTransform->m_pos, Size);
             //QuadRotation(buffer, e->cTransform->m_pos, Size, rotate);
             indexCount += 6;
@@ -319,9 +327,9 @@ void Game::sWallConstrains(std::shared_ptr<Entity> entity)
         // Quad is center in the bottom left corner.
         std::shared_ptr<CTransform> enemy = entity->cTransform;
         // Ceiling
-        if(enemy->m_pos[1]>1.0f-entity->cShape->m_sizeY)
+        if(enemy->m_pos[1]>1.0f-entity->cShape->m_size[1])
         {
-            enemy->m_pos[1] = enemy->m_pos[1] - (enemy->m_pos[1] - (1.0f-entity->cShape->m_sizeY));
+            enemy->m_pos[1] = enemy->m_pos[1] - (enemy->m_pos[1] - (1.0f-entity->cShape->m_size[1]));
             enemy->m_pos_old[1] = enemy->m_pos[1] + enemy->m_velocity[1];
             enemy->m_velocity = (enemy->m_pos - enemy->m_pos_old)*ABSORTION;
         }
@@ -344,9 +352,9 @@ void Game::sWallConstrains(std::shared_ptr<Entity> entity)
         }
 
         // Right
-        if(enemy->m_pos[0]>1.0f*ratio-entity->cShape->m_sizeX)
+        if(enemy->m_pos[0]>1.0f*ratio-entity->cShape->m_size[0])
         {
-            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (1.0f*ratio-entity->cShape->m_sizeX));
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (1.0f*ratio-entity->cShape->m_size[0]));
             enemy->m_pos_old[0] = enemy->m_pos[0] + enemy->m_velocity[0];
             enemy->m_velocity = (enemy->m_pos - enemy->m_pos_old)*ABSORTION;
         }
@@ -377,23 +385,94 @@ void Game::sRestart()
     m_player->cTransform->m_pos_old = m_player->cTransform->m_pos- m_player->cTransform->m_velocity;
 }
 
+glm::vec3 Game::sManifoldCollision(std::shared_ptr<Entity> e1, std::shared_ptr<Entity> e2)
+{
+    glm::vec3 normal(1.0f);
+
+    glm::vec3 pos1 = e1->cTransform->m_pos;
+    glm::vec3 pos2 = e2->cTransform->m_pos;
+
+    glm::vec3 size1= e1->cShape->m_size;
+    glm::vec3 size2 = e2->cShape->m_size;
+    // Estoy dentro de una collision, me fijo cual
+    if ((pos1[1] < pos2[1]))
+    {
+        if(pos2[1] < pos1[1]+size1[1])
+        {
+            float diff = pos1[1]+size1[1] - pos2[1];
+            e1->cTransform->m_pos[1] -= diff/2.0f;
+            e2->cTransform->m_pos[1] += diff/2.0f;
+            normal = glm::vec3(0.0f,1.0f,0.0f);
+        }
+    }
+    else if ((pos2[1] < pos1[1]))
+    {
+        if(pos1[1] < pos2[1]+size2[1])
+        {
+            float diff = pos2[1]+size2[1] - pos1[1];
+            e2->cTransform->m_pos[1] -= diff/2.0f;
+            e1->cTransform->m_pos[1] += diff/2.0f;
+            normal = glm::vec3(0.0f,1.0f,0.0f);
+        }
+    }
+    else if ((pos1[0] < pos2[0]))
+    {
+        if(pos2[0] < pos1[0]+size1[0])
+        {
+            float diff = pos1[0]+size1[0] - pos2[0];
+            e1->cTransform->m_pos[0] -= diff/2.0f;
+            e2->cTransform->m_pos[0] += diff/2.0f;
+            normal = glm::vec3(1.0f,0.0f,0.0f);
+        }
+    }
+    else if ((pos2[0] < pos1[0]))
+    {
+        if(pos1[0] < pos2[0]+size2[0])
+        {
+            float diff = pos2[0]+size2[0] - pos1[0];
+            e2->cTransform->m_pos[0] -= diff/2.0f;
+            e1->cTransform->m_pos[0] += diff/2.0f;
+            normal = glm::vec3(1.0f,0.0f,0.0f);
+        }
+    }
+    return normal;
+}
+
 void Game::sResolveCollision(std::shared_ptr<Entity> e1, std::shared_ptr<Entity> e2)
 {
     glm::vec3 vrel = e1->cTransform->m_velocity - e2->cTransform->m_velocity;
     glm::vec3 posrel = e1->cTransform->m_pos - e2->cTransform->m_pos;
-    glm::vec3 normal(1.0f);
-    if ( std::abs(posrel[0]) > std::abs(posrel[1]))
-        normal  = glm::vec3(1.0f, 0.0f, 0.0f);
-    else
-        normal = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 normal = sManifoldCollision(e1, e2);
 
     float impulseMagnitud = ABSORTION*(glm::dot(vrel,normal))/2.0f;
-    glm::vec3 Jn = impulseMagnitud*normal;
+    glm::vec3 Jn = -impulseMagnitud*normal;
 
-    e1->cTransform->m_pos += e1->cTransform->m_velocity + Jn;
-    e2->cTransform->m_pos += e2->cTransform->m_velocity - Jn;
+   // std::cout << "pos vieja : " << e1->cTransform->m_pos[0] <<
+   //     " " << e1->cTransform->m_pos[1] << ", vel vieja: " <<
+   // e1->cTransform->m_velocity[0] << " "<<e1->cTransform->m_velocity[1] << std::endl;
+
+
+        // Tengo que primero separar los bloques, a que justo se esten tocando, y luego
+        // le aplico el impulso para que sigan un camino separados
+        // si en vez de sumar
+        // Ademas como estoy usando Verlet deberia modificar la posicion vieja
+        // Tendria quie ver como hacer para hacer como que venia por la trayectoria a la que voy a ir post impacto
+    e1->cTransform->m_pos -= e1->cTransform->m_velocity + Jn;
+    e1->cTransform->m_pos_old = e1->cTransform->m_pos_old;
+   // std::cout << "pos nueva: " << e1->cTransform->m_pos[0] <<
+   //     " " << e1->cTransform->m_pos[1]  << std::endl;
+    e2->cTransform->m_pos -= e2->cTransform->m_velocity - Jn;
+    e2->cTransform->m_pos_old = e2->cTransform->m_pos_old;
 }
 
+void Game::sResolveCollisionBullet(std::shared_ptr<Entity> e1, std::shared_ptr<Entity> e2)
+{
+    if(((e1->tag() == tag::Bullet) && (e2->tag()== tag::Enemy)) || ((e2->tag() == tag::Bullet) && (e1->tag()== tag::Enemy)) )
+    {
+        e1->destroy();
+        e2->destroy();
+    }
+}
 
 void Game::sCollision()
 {
@@ -405,14 +484,14 @@ void Game::sCollision()
             {
                 if(sCheckCollision(e1, e2))
                 {
-                    if(m_player==e1 || m_player==e2)
-                    {
+                    if((m_player==e1 && e2->tag()==tag::Enemy ) || (m_player==e2 && e1->tag()==tag::Enemy))
                         sRestart();
-                    }
                     // fijarse si es bullet enemy
                     else
                     {
-                        sResolveCollision(e1, e2);
+                        if(SIMULATION)
+                            sResolveCollision(e1, e2);
+                        sResolveCollisionBullet(e1, e2);
                     }
 
                 }
@@ -424,11 +503,11 @@ void Game::sCollision()
 bool Game::sCheckCollision(std::shared_ptr<Entity> one, std::shared_ptr<Entity> two)
 {
     // collision x-axis?
-    bool collisionX = one->cTransform->m_pos[0] + one->cShape->m_sizeX >= two->cTransform->m_pos[0]&&
-        two->cTransform->m_pos[0] + two->cShape->m_sizeX >= one->cTransform->m_pos[0];
+    bool collisionX = one->cTransform->m_pos[0] + one->cShape->m_size[0] >= two->cTransform->m_pos[0]&&
+        two->cTransform->m_pos[0] + two->cShape->m_size[0] >= one->cTransform->m_pos[0];
     // collision y-axis?
-    bool collisionY = one->cTransform->m_pos[1] + one->cShape->m_sizeY >= two->cTransform->m_pos[1] &&
-        two->cTransform->m_pos[1] + two->cShape->m_sizeY >= one->cTransform->m_pos[1];
+    bool collisionY = one->cTransform->m_pos[1] + one->cShape->m_size[1] >= two->cTransform->m_pos[1] &&
+        two->cTransform->m_pos[1] + two->cShape->m_size[1] >= one->cTransform->m_pos[1];
     // collision only if on both axes
     bool res = collisionX && collisionY;
  //   std::cout << res << std::endl;
@@ -441,7 +520,7 @@ void Game::sUserInput()
 
     if(m_player->cInput->Keys[GLFW_KEY_W])
     {
-        if(player->m_pos[1]<1.0f-m_player->cShape->m_sizeY)
+        if(player->m_pos[1]<1.0f-m_player->cShape->m_size[1])
             player->m_pos[1] += player->m_velocity[1];
     }
     if(m_player->cInput->Keys[GLFW_KEY_S])
@@ -456,16 +535,18 @@ void Game::sUserInput()
     }
     if(m_player->cInput->Keys[GLFW_KEY_D])
     {
-        if(player->m_pos[0]<1.0f*ratio-m_player->cShape->m_sizeX)
+        if(player->m_pos[0]<1.0f*ratio-m_player->cShape->m_size[0])
             player->m_pos[0] +=player->m_velocity[0];
     }
     if(m_player->cInput->Keys[GLFW_MOUSE_BUTTON_LEFT])
     {
         double xpos, ypos;
         glfwGetCursorPos(m_window, &xpos, &ypos );
-        xpos = xpos/SCREEN_WIDTH;
-        ypos = ypos/SCREEN_HEIGHT;
+       // std::cout << "before " << xpos << " " << ypos << std::endl;
+        xpos = (-1.0*ratio + 2.0 * (double) xpos / SCREEN_HEIGHT);
+        ypos = 1.0 - 2.0 * (double) ypos / SCREEN_HEIGHT;
         glm::vec2 mousePos = glm::vec2(xpos, ypos);
+       // std::cout << "after " << xpos << " " << ypos << std::endl;
         spawnBullet(m_player, mousePos);
     }
 }
@@ -491,13 +572,14 @@ void Game::spawnBullet(std::shared_ptr<Entity> e, const glm::vec2& target)
 {
     auto entity = m_entities.addEntity(Bullet);
 
-    glm::vec3 origin = e->cTransform->m_pos;
-    glm::vec3 dir = origin - glm::vec3(target, 0.0f);
+    glm::vec3 origin = centerQuad(e);
+    glm::vec3 dir = BULLET_SPEED*glm::normalize(glm::vec3(target, 0.0f)-origin);
     entity->cTransform = std::make_shared<CTransform>(glm::vec3(origin.x, origin.y ,0.0f),
                                                      dir, 0.0f);
     m_lastEnemySpawnTime = m_currentFrame;
 
     entity->cShape = std::make_shared<CShape>(BULLET_SIZE, BULLET_SIZE);
+    m_player->cInput->Keys[GLFW_MOUSE_BUTTON_LEFT] = false;
 }
 
 // Not used for now.

@@ -48,6 +48,7 @@ class Game
     void sCollision();
 
     void sResolveCollision(std::shared_ptr<Entity> e1, std::shared_ptr<Entity> e2);
+    void sResolveCollisionBullet(std::shared_ptr<Entity> e1, std::shared_ptr<Entity> e2);
     void sWallConstrains(std::shared_ptr<Entity> enemy);
     void spawnPlayer();
     void spawnEnemy();
@@ -56,6 +57,8 @@ class Game
     void spawnSpecialWeapon(std::shared_ptr<Entity> entity);
     void LoadConfig(const std::string& filepath);
     bool sCheckCollision(std::shared_ptr<Entity> one, std::shared_ptr<Entity> two);
+
+    glm::vec3 sManifoldCollision(std::shared_ptr<Entity> e1, std::shared_ptr<Entity> e2);
 
 public:
     Game(const std::string & config, const char* vertexPath, const char* fragmentPath);

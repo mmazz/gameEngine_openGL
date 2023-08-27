@@ -30,10 +30,9 @@ public:
 class CShape
 {
 public:
-    float m_sizeX;
-    float m_sizeY;
-    CShape():m_sizeX(0.25f), m_sizeY(0.25f){}
-    CShape(float sizeX, float sizeY):m_sizeX(sizeX), m_sizeY(sizeY) {}
+    glm::vec3 m_size;
+    CShape():m_size(0.25f, 0.25f, 0.0f){}
+    CShape(float sizeX, float sizeY):m_size(sizeX, sizeY, 0.0f) {}
 };
 
 

@@ -61,7 +61,7 @@ void mouseButtonCallback( GLFWwindow *window, int key, int action, int mods )
         else if (action == GLFW_RELEASE)
             game.getPlayer()->cInput->Keys[key] = false;
     }
-    if ( key == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS )
+    if ( key == GLFW_MOUSE_BUTTON_LEFT )
     {
         if (action == GLFW_PRESS)
             game.getPlayer()->cInput->Keys[key] = true;

@@ -1,5 +1,6 @@
 #include "entityManager.h"
 #include <filesystem>
+#include <iterator>
 // Tener cuidado con Iterator Invalitaion
 // Basicamente modificar el contenido de una collecion mientras lo itero
 // Tiene muchas veces comportamiento no definido.
@@ -16,7 +17,18 @@ EntityManager::EntityManager()
 
 void EntityManager::removeDeadEntities(EntityVec& vec)
 {
-
+    std::vector<int> entitys_dead;
+    int count = 0;
+    for (auto e: vec)
+    {
+        if (!e->m_active)
+            entitys_dead.push_back(count);
+        count++;
+    }
+    for ( size_t i=entitys_dead.size()-1; i>=0 ; i++)
+    {
+        vec.erase(vec.begin()+i);
+    }
 }
 
 std::shared_ptr<Entity> EntityManager::addEntity(const enum tag& tag)
@@ -36,10 +48,10 @@ void EntityManager::update()
 
     m_entitiesToAdd.clear();
 
-    removeDeadEntities(m_entities);
+//    removeDeadEntities(m_entities);
     for (auto& [tag, entityVec] : m_entityMap)
     {
-        removeDeadEntities(entityVec);
+  //      removeDeadEntities(entityVec);
     }
 }
 
