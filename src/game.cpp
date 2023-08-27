@@ -4,33 +4,18 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/quaternion_geometric.hpp>
 
-float SCREEN_WIDTH = 1920.0f;
-float SCREEN_HEIGHT = 1080.0f;
-float ratio =  SCREEN_WIDTH/SCREEN_HEIGHT;
-
-const bool SIMULATION = false;
-const bool GRAVITY = false;
 
 const size_t MaxQuadsCount = 10000;
 
-const float ENEMY_SIZE = 0.20f;
-const float BULLET_SIZE = 0.04f;
 const float BULLET_SPEED = 0.04f;
 
-const size_t FPS_SPAWN = 100;
-const float FPS_CAP = 60.0f;
 const float ABSORTION = 0.8f;
 
-const double maxFPS = 60.0;
-const double maxPeriod = 1.0 / maxFPS;
 
 const glm::vec3 gravity_vec = glm::vec3(0.0f, -20.0f, 0.0f);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
-    glViewport(0, 0, width, height);
-    SCREEN_WIDTH = (float)width;
-    SCREEN_HEIGHT = (float)height;
-    ratio =  (float)width/(float)height;
+    glViewport(0, 0, (float)width, (float)height);
 }
 
 struct Vec2
@@ -122,7 +107,8 @@ Game::Game(const std::string& config, const char* vertexPath, const char* fragme
 
     glfwWindowHint(GLFW_RESIZABLE, false);
 
-    this->m_window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "MatiDo", nullptr, nullptr);
+    LoadConfig(config);
+    this->m_window = glfwCreateWindow((float)m_worldConfig.W, (float)m_worldConfig.H, "MatiDo", nullptr, nullptr);
     glfwMakeContextCurrent(this->m_window);
     glfwSetFramebufferSizeCallback(this->m_window, framebuffer_size_callback);
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -130,11 +116,12 @@ Game::Game(const std::string& config, const char* vertexPath, const char* fragme
         std::cout << "Failed to initialize GLAD" << std::endl;
         // return?
     }
-    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    glViewport(0, 0, (float)m_worldConfig.W, (float)m_worldConfig.H);
 
+    m_ratio = ((float)m_worldConfig.W)/((float)m_worldConfig.H);
     m_ourShader = new Shader(vertexPath, fragmentPath);
 
-    init(config);
+    init();
 }
 
 Game::~Game()
@@ -152,7 +139,15 @@ std::shared_ptr<Entity> Game::getPlayer()
     return m_player;
 }
 
-void Game::init(const std::string& path)
+// no estoy pudiendo llamar esta funcion cuando se llama el framebuffer_size_callback
+void Game::setWinSize(int width, int height)
+{
+    m_worldConfig.W = width;
+    m_worldConfig.H = height;
+    m_ratio = (float)width/(float)height;
+}
+
+void Game::init()
 {
     const size_t MaxVertexCount = MaxQuadsCount * 4;
     const size_t MaxIndexCount = MaxQuadsCount * 6;
@@ -199,9 +194,9 @@ void Game::run()
 {
     // agregar que cuando pausamos algunos system no tienen que andar
     // y otros si como el render.
-    const float dt = 1.0f /FPS_CAP;
-    setGravity(GRAVITY);
-    setSimulation(SIMULATION);
+    const float dt = 1.0f /m_worldConfig.FL;
+    setGravity(m_worldConfig.GRAV);
+    setSimulation(m_worldConfig.SIM);
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
     while (!glfwWindowShouldClose(m_window))
@@ -212,12 +207,11 @@ void Game::run()
 
         if(!m_paused)
         {
-            if( deltaTime >= maxPeriod )
+            if( deltaTime >= dt )
             {
                 lastFrame = currentFrame;
                 sEnemySpawner();
             }
-           // std::cout << 1/deltaTime << std::endl;
             sCollision();
             sMovement(dt);
         }
@@ -259,8 +253,8 @@ void Game::spawnEnemy()
     auto entity = m_entities.addEntity(Enemy);
     float ex = RandomNumber(-0.8f, 0.8f);
     float ey = RandomNumber(-0.8f, 0.8f);
-    float vx = RandomNumber(-0.01f, 0.01f);
-    float vy = RandomNumber(-0.01f, 0.01f);
+    float vx = RandomNumber(m_enemyConfig.SMIN, m_enemyConfig.SMAX);
+    float vy = RandomNumber(m_enemyConfig.SMIN, m_enemyConfig.SMAX);
     if (m_simulation)
     {
         ex = -1.75f;
@@ -270,19 +264,17 @@ void Game::spawnEnemy()
     }
 
     entity->cTransform = std::make_shared<CTransform>(glm::vec3(ex, ey,0.0f),
-                                                     glm::vec3(vx, vy,0.0f), 0.0f);
+                                                      glm::vec3(vx, vy,0.0f), 0.0f);
     m_lastEnemySpawnTime = m_currentFrame;
 
-    entity->cShape = std::make_shared<CShape>(ENEMY_SIZE, ENEMY_SIZE);
+    entity->cShape = std::make_shared<CShape>(m_enemyConfig.SR, m_enemyConfig.SR);
 }
 
 void Game::sEnemySpawner()
 {
     // agregar par que cada x frames se meta uno.
-    if ((m_currentFrame-m_lastEnemySpawnTime)%FPS_SPAWN==0)
-    {
+    if ((m_currentFrame-m_lastEnemySpawnTime)%m_enemyConfig.SI==0)
         spawnEnemy();
-    }
 }
 
 void Game::sRender()
@@ -298,7 +290,7 @@ void Game::sRender()
 
     glm::mat4 model(1.0f);
     m_ourShader->use();
-    model =  scale(model, glm::vec3( 1.0f/ratio, 1.0f, 1.0f));
+    model =  scale(model, glm::vec3( 1.0f/m_ratio, 1.0f, 1.0f));
     for (auto e: m_entities.getEntities())
     {
         if(e->cTransform)
@@ -337,24 +329,23 @@ void Game::sWallConstrains(std::shared_ptr<Entity> entity)
         // Floor
         if(enemy->m_pos[1]<-1.0f)
         {
-
             enemy->m_pos[1] = enemy->m_pos[1] - (enemy->m_pos[1] - (-1.0f));
             enemy->m_pos_old[1] = enemy->m_pos[1] + enemy->m_velocity[1];
             enemy->m_velocity = (enemy->m_pos - enemy->m_pos_old)*ABSORTION;
         }
 
         // Left
-        if(enemy->m_pos[0]<-1.0f*ratio)
+        if(enemy->m_pos[0]<-1.0f*m_ratio)
         {
-            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (-1.0f*ratio));
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (-1.0f*m_ratio));
             enemy->m_pos_old[0] = enemy->m_pos[0] + enemy->m_velocity[0];
             enemy->m_velocity = (enemy->m_pos - enemy->m_pos_old)*ABSORTION;
         }
 
         // Right
-        if(enemy->m_pos[0]>1.0f*ratio-entity->cShape->m_size[0])
+        if(enemy->m_pos[0]>1.0f*m_ratio-entity->cShape->m_size[0])
         {
-            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (1.0f*ratio-entity->cShape->m_size[0]));
+            enemy->m_pos[0] = enemy->m_pos[0] - 2*(enemy->m_pos[0] - (1.0f*m_ratio-entity->cShape->m_size[0]));
             enemy->m_pos_old[0] = enemy->m_pos[0] + enemy->m_velocity[0];
             enemy->m_velocity = (enemy->m_pos - enemy->m_pos_old)*ABSORTION;
         }
@@ -489,7 +480,7 @@ void Game::sCollision()
                     // fijarse si es bullet enemy
                     else
                     {
-                        if(SIMULATION)
+                        if(m_worldConfig.SIM)
                             sResolveCollision(e1, e2);
                         sResolveCollisionBullet(e1, e2);
                     }
@@ -530,23 +521,24 @@ void Game::sUserInput()
     }
     if(m_player->cInput->Keys[GLFW_KEY_A])
     {
-        if(player->m_pos[0]>-1.0f*ratio)
+        if(player->m_pos[0]>-1.0f*m_ratio)
             player->m_pos[0] -= player->m_velocity[0];
     }
     if(m_player->cInput->Keys[GLFW_KEY_D])
     {
-        if(player->m_pos[0]<1.0f*ratio-m_player->cShape->m_size[0])
+        if(player->m_pos[0]<1.0f*m_ratio-m_player->cShape->m_size[0])
             player->m_pos[0] +=player->m_velocity[0];
     }
     if(m_player->cInput->Keys[GLFW_MOUSE_BUTTON_LEFT])
     {
         double xpos, ypos;
         glfwGetCursorPos(m_window, &xpos, &ypos );
-       // std::cout << "before " << xpos << " " << ypos << std::endl;
-        xpos = (-1.0*ratio + 2.0 * (double) xpos / SCREEN_HEIGHT);
-        ypos = 1.0 - 2.0 * (double) ypos / SCREEN_HEIGHT;
+        std::cout << m_ratio << std::endl;
+        std::cout << "before " << xpos << " " << ypos << std::endl;
+        xpos = (-1.0 + 2.0 * (double) xpos / (float)m_worldConfig.W)*m_ratio;
+        ypos = 1.0 - 2.0 * (double) ypos / (float)m_worldConfig.H;
         glm::vec2 mousePos = glm::vec2(xpos, ypos);
-       // std::cout << "after " << xpos << " " << ypos << std::endl;
+        std::cout << "after " << xpos << " " << ypos << std::endl;
         spawnBullet(m_player, mousePos);
     }
 }
@@ -573,16 +565,15 @@ void Game::spawnBullet(std::shared_ptr<Entity> e, const glm::vec2& target)
     auto entity = m_entities.addEntity(Bullet);
 
     glm::vec3 origin = centerQuad(e);
-    glm::vec3 dir = BULLET_SPEED*glm::normalize(glm::vec3(target, 0.0f)-origin);
+    glm::vec3 dir = m_bulletConfig.S*glm::normalize(glm::vec3(target, 0.0f)-origin);
     entity->cTransform = std::make_shared<CTransform>(glm::vec3(origin.x, origin.y ,0.0f),
-                                                     dir, 0.0f);
+                                                      dir, 0.0f);
     m_lastEnemySpawnTime = m_currentFrame;
 
-    entity->cShape = std::make_shared<CShape>(BULLET_SIZE, BULLET_SIZE);
+    entity->cShape = std::make_shared<CShape>(m_bulletConfig.SR, m_bulletConfig.SR);
     m_player->cInput->Keys[GLFW_MOUSE_BUTTON_LEFT] = false;
 }
 
-// Not used for now.
 void Game::LoadConfig(const std::string& filepath)
 {
     std::ifstream stream(filepath);
@@ -592,8 +583,17 @@ void Game::LoadConfig(const std::string& filepath)
     {
         std::stringstream ss(line);
         ss >> word;
-
-        if ( word == "Player")
+        if ( word == "Window")
+        {
+            ss >> m_worldConfig.W >>  m_worldConfig.H >> m_worldConfig.FL >>
+                m_worldConfig.FS >> m_worldConfig.SIM >> m_worldConfig.GRAV;
+        }
+        else if (word == "Font")
+        {
+            ss >> m_fontConfig.F >>  m_fontConfig.S >> m_fontConfig.R >>m_fontConfig.G
+                >> m_fontConfig.B;
+        }
+        else if ( word == "Player")
         {
             ss >> m_playerConfig.SR >> m_playerConfig.CR >> m_playerConfig.FR >>
                   m_playerConfig.FG >> m_playerConfig.FB >> m_playerConfig.OR >>
@@ -603,7 +603,8 @@ void Game::LoadConfig(const std::string& filepath)
         }
         else if (word == "Enemy" )
         {
-            ss >> m_enemyConfig.SR   >> m_enemyConfig.CR   >> m_enemyConfig.OR >>
+            ss >> m_enemyConfig.SR ;
+            ss >> m_enemyConfig.CR   >> m_enemyConfig.OR >>
                   m_enemyConfig.OG   >> m_enemyConfig.OB   >> m_enemyConfig.OT >>
                   m_enemyConfig.VMIN >> m_enemyConfig.VMAX >> m_enemyConfig.L >>
                   m_enemyConfig.SI;

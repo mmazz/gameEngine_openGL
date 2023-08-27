@@ -13,9 +13,11 @@
 
 //opengl?
 
+struct WorldConfig  { int W, H, FL, FS; bool SIM, GRAV; };
+struct FontConfig   { std::string F; int S, R, G, B; };
 struct PlayerConfig { int SR, CR, FR, FG, FB, OR, OG, OB, OT, V; float S; };
-struct EnemyConfig  { int SR, CR, OR, OG, OB, OT, VMIN, VMAX, L, SI; float SMIN, SMAX; } ;
-struct BulletConfig { int SR, CR, FR, FG, FB, OR, OG, OB, OT, V, L ; float S; };
+struct EnemyConfig  { float SR; int CR, OR, OG, OB, OT, VMIN, VMAX, L, SI; float SMIN, SMAX; } ;
+struct BulletConfig { float SR; int CR, FR, FG, FB, OR, OG, OB, OT, V, L ; float S; };
 
 class Game
 {
@@ -25,7 +27,10 @@ class Game
     EntityManager m_entities;
    // font m_font;
    // text m_text;
+    float m_ratio;
     Shader* m_ourShader;
+    WorldConfig  m_worldConfig;
+    FontConfig   m_fontConfig;
     PlayerConfig m_playerConfig;
     EnemyConfig  m_enemyConfig;
     BulletConfig m_bulletConfig;
@@ -37,7 +42,7 @@ class Game
     bool         m_simulation = true;
 
     glm::vec3 m_gravity = glm::vec3(0.0f, -0.1f, 0.0f);
-    void init(const std::string& config);
+    void init();
     void sRestart();
 
     void sMovement(float dt);
@@ -69,5 +74,6 @@ public:
     void setPaused();
     void setGravity(bool gravity);
     void setSimulation(bool simulation);
+    void setWinSize(int width, int height);
 };
 

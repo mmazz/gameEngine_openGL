@@ -1,0 +1,11 @@
+Window:  Width, Height, Frame Limit, boolean full screen
+Font: Font file, Size, RGB
+Player: Shape Radius(SR), Collision Radius(CR), Speed(S), 3xFill Color(FR,FG,FB),
+        3xOutline Color(OR,OG,OB), Outline Thicknes(OT), Shape Vertices(V)
+Enemy: Shape Radius(SR), Collision Radius(CR), Min Speed(SMIN), Max Speed(SMAX),  3xOutline Color(OR,OG,OB),
+        Shape VerticesOutline Thicknes(OT), Min Vertices(VMIN), Max Vertices(VMAX), Small Lifespan (L), Spawn Interval (SI)
+Los vertices son la cantidad de vertices del poligono.
+Small Lifespan, es el tiempo de vida de los enemigos chicos.
+Spawn Interval, cada cuantos frames va a aparecer un nuevo enemgigo
+Bullet: Shape Radius(SR), Collision Radius(CR), Speed(S), 3xFill Color(FR,FG,FB),
+        3xOutline Color(OR,OG,OB), Outline Thicknes(OT), Shape Vertices(V), Lifespan (L)
