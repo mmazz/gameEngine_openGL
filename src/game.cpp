@@ -1,9 +1,10 @@
 #include "game.h"
+#include "components.h"
 #include <GLFW/glfw3.h>
 #include <cstdint>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/quaternion_geometric.hpp>
-
+#include <memory>
 
 const size_t MaxQuadsCount = 10000;
 
@@ -11,8 +12,18 @@ const float BULLET_SPEED = 0.04f;
 
 const float ABSORTION = 0.8f;
 
-
 const glm::vec3 gravity_vec = glm::vec3(0.0f, -20.0f, 0.0f);
+/// Holds all state information relevant to a character as loaded using FreeType
+struct Character {
+    unsigned int TextureID; // ID handle of the glyph texture
+    glm::ivec2   Size;      // Size of glyph
+    glm::ivec2   Bearing;   // Offset from baseline to left/top of glyph
+    unsigned int Advance;   // Horizontal offset to advance to next glyph
+};
+
+std::map<GLchar, Character> Characters;
+
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, (float)width, (float)height);
@@ -46,24 +57,24 @@ float RandomNumber(float Min, float Max)
     return ((float(rand()) / float(RAND_MAX)) * (Max - Min)) + Min;
 }
 
-static Vertex* CreateQuad(Vertex* target, glm::vec3 pos, Vec2 size)
+static Vertex* CreateQuad(Vertex* target, glm::vec3 pos, Vec2 size, float alpha)
 {
     float x = pos[0];
     float y = pos[1];
     target->Position = {x, y, 1.0f};
-    target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
+    target->Color = {0.18f+x, 0.2f, 0.3f+y, alpha};
     target++;
 
     target->Position = {x+size.x, y, 1.0f};
-    target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
+    target->Color = {0.18f+x, 0.2f, 0.3f+y, alpha};
     target++;
 
     target->Position = {x+size.x, y+size.y, 1.0f};
-    target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
+    target->Color = {0.18f+x, 0.2f, 0.3f+y, alpha};
     target++;
 
     target->Position = {x, y+size.y, 1.0f};
-    target->Color = {0.18f+x, 0.2f, 0.3f+y, 1.0f};
+    target->Color = {0.18f+x, 0.2f, 0.3f+y, alpha};
     target++;
 
     return target;
@@ -120,6 +131,7 @@ Game::Game(const std::string& config, const char* vertexPath, const char* fragme
 
     m_ratio = ((float)m_worldConfig.W)/((float)m_worldConfig.H);
     m_ourShader = new Shader(vertexPath, fragmentPath);
+    m_ourShader_text = new Shader("shaders/text.vs", "shaders/text.fs");
 
     init();
 }
@@ -149,9 +161,94 @@ void Game::setWinSize(int width, int height)
 
 void Game::init()
 {
+    // FreeType
+    // --------
+    FT_Library ft;
+    // All functions return a value different than 0 whenever an error occurred
+    if (FT_Init_FreeType(&ft))
+    {
+        std::cout << "ERROR::FREETYPE: Could not init FreeType Library" << std::endl;
+    }
+
+	// find path to font
+    std::string font_name = "fonts/ocraext.TTF";
+    if (font_name.empty())
+    {
+        std::cout << "ERROR::FREETYPE: Failed to load font_name" << std::endl;
+    }
+
+	// load font as face
+    FT_Face face;
+    if (FT_New_Face(ft, font_name.c_str(), 0, &face)) {
+        std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;
+    }
+    else {
+        // set size to load glyphs as
+        FT_Set_Pixel_Sizes(face, 0, 48);
+
+        // disable byte-alignment restriction
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+        // load first 128 characters of ASCII set
+        for (unsigned char c = 0; c < 128; c++)
+        {
+            // Load character glyph
+            if (FT_Load_Char(face, c, FT_LOAD_RENDER))
+            {
+                std::cout << "ERROR::FREETYTPE: Failed to load Glyph" << std::endl;
+                continue;
+            }
+            // generate texture
+            unsigned int texture;
+            glGenTextures(1, &texture);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RED,
+                face->glyph->bitmap.width,
+                face->glyph->bitmap.rows,
+                0,
+                GL_RED,
+                GL_UNSIGNED_BYTE,
+                face->glyph->bitmap.buffer
+            );
+            // set texture options
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            // now store character for later use
+            Character character = {
+                texture,
+                glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
+                glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+                static_cast<unsigned int>(face->glyph->advance.x)
+            };
+            Characters.insert(std::pair<char, Character>(c, character));
+        }
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    // destroy FreeType once we're finished
+    FT_Done_Face(face);
+    FT_Done_FreeType(ft);
+
+    // configure VAO/VBO for texture quads
+    // -----------------------------------
+    glGenVertexArrays(1, &m_VAO_text);
+    glGenBuffers(1, &m_VAO_text);
+    glBindVertexArray(m_VBO_text);
+    glBindBuffer(GL_ARRAY_BUFFER, m_VBO_text);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
     const size_t MaxVertexCount = MaxQuadsCount * 4;
     const size_t MaxIndexCount = MaxQuadsCount * 6;
-
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glGenVertexArrays(1, &m_QuadVA);
     glGenBuffers(1, &m_QuadVB);
     glGenBuffers(1, &m_QuadIB);
@@ -184,6 +281,7 @@ void Game::init()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glBindVertexArray(0);
+
     spawnPlayer();
     // spawnEnemy();
     // ToDo: read variables...
@@ -291,11 +389,18 @@ void Game::sRender()
     glm::mat4 model(1.0f);
     m_ourShader->use();
     model =  scale(model, glm::vec3( 1.0f/m_ratio, 1.0f, 1.0f));
+
+    // Dibujar asi solo los enemigos, y hacer un buffer extra para lo bullets
+    // y otro solo para el personaje.
+    // De esta forma puedo darle opacidad a las bullets mientras se van extinguiendo.
     for (auto e: m_entities.getEntities())
     {
         if(e->cTransform)
         {   Vec2 Size = Vec2(e->cShape->m_size[0], e->cShape->m_size[1]);
-            buffer = CreateQuad(buffer, e->cTransform->m_pos, Size);
+            if(e->tag()==tag::Bullet)
+                buffer = CreateQuad(buffer, e->cTransform->m_pos, Size, (float)e->cLifeSpan->remaining/e->cLifeSpan->total);
+            else
+                buffer = CreateQuad(buffer, e->cTransform->m_pos, Size, 1.0f);
             //QuadRotation(buffer, e->cTransform->m_pos, Size, rotate);
             indexCount += 6;
         }
@@ -311,6 +416,12 @@ void Game::sRender()
 
     glBindVertexArray(m_QuadVA);
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_VBO_text);
+    glBindVertexArray(m_VBO_text);
+
+
+    RenderText(m_ourShader_text, "This is sample text", 0.0f, 0.0f, 0.0f, glm::vec3(0.5, 0.8f, 0.2f));
 }
 
 //Verlet integration
@@ -366,6 +477,9 @@ void Game::sMovement(float dt)
         enemy->m_pos_old = enemy->m_pos;
         enemy->m_pos = enemy->m_pos_old + enemy->m_velocity + m_gravity*dt*dt;
         sWallConstrains(e);
+        e->cLifeSpan->remaining -= 1;
+        if(e->cLifeSpan->remaining==0)
+            e->destroy();
     }
 }
 
@@ -374,6 +488,13 @@ void Game::sRestart()
     m_player->cTransform->m_pos = m_player->cTransform->m_pos_init;
     m_player->cTransform->m_velocity = m_player->cTransform->m_velocity_init;
     m_player->cTransform->m_pos_old = m_player->cTransform->m_pos- m_player->cTransform->m_velocity;
+    m_score = 0;
+    for ( auto e: m_entities.getEntities())
+    {
+        if ( e!=m_player)
+            e->destroy();
+
+    }
 }
 
 glm::vec3 Game::sManifoldCollision(std::shared_ptr<Entity> e1, std::shared_ptr<Entity> e2)
@@ -462,6 +583,7 @@ void Game::sResolveCollisionBullet(std::shared_ptr<Entity> e1, std::shared_ptr<E
     {
         e1->destroy();
         e2->destroy();
+        m_score+=100;
     }
 }
 
@@ -569,6 +691,7 @@ void Game::spawnBullet(std::shared_ptr<Entity> e, const glm::vec2& target)
 
     entity->cShape = std::make_shared<CShape>(m_bulletConfig.SR, m_bulletConfig.SR);
     m_player->cInput->Keys[GLFW_MOUSE_BUTTON_LEFT] = false;
+    entity->cLifeSpan = std::make_shared<CLifeSpan>(m_bulletConfig.L);
 }
 
 void Game::LoadConfig(const std::string& filepath)
@@ -618,4 +741,47 @@ void Game::LoadConfig(const std::string& filepath)
     }
 }
 
+void Game::RenderText(Shader *shader, std::string text, float x, float y, float scale, glm::vec3 color)
+{
+    // activate corresponding render state
+    shader->use();
+    glUniform3f(glGetUniformLocation(shader->ID, "textColor"), color.x, color.y, color.z);
+    glActiveTexture(GL_TEXTURE0);
+    glBindVertexArray(m_VAO_text);
 
+    // iterate through all characters
+    std::string::const_iterator c;
+    for (c = text.begin(); c != text.end(); c++)
+    {
+        Character ch = Characters[*c];
+
+        float xpos = x + ch.Bearing.x * scale;
+        float ypos = y - (ch.Size.y - ch.Bearing.y) * scale;
+
+        float w = ch.Size.x * scale;
+        float h = ch.Size.y * scale;
+        // update VBO for each character
+        float vertices[6][4] = {
+            { xpos,     ypos + h,   0.0f, 0.0f },
+            { xpos,     ypos,       0.0f, 1.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+
+            { xpos,     ypos + h,   0.0f, 0.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+            { xpos + w, ypos + h,   1.0f, 0.0f }
+        };
+        // render glyph texture over quad
+        glBindTexture(GL_TEXTURE_2D, ch.TextureID);
+        // update content of VBO memory
+        glBindBuffer(GL_ARRAY_BUFFER, m_VBO_text);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices); // be sure to use glBufferSubData and not glBufferData
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        // render quad
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        // now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+        x += (ch.Advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
+    }
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}

@@ -10,6 +10,8 @@
 #include "entityManager.h"
 #include "components.h"
 #include "shader.h"
+#include <ft2build.h>
+#include FT_FREETYPE_H
 
 //opengl?
 
@@ -24,11 +26,13 @@ class Game
     GLFWwindow* m_window;
     std::shared_ptr<Entity> m_player;
     unsigned int m_QuadVB, m_QuadVA, m_QuadIB;
+    unsigned int m_VBO_text, m_VAO_text;
     EntityManager m_entities;
    // font m_font;
    // text m_text;
     float m_ratio;
     Shader* m_ourShader;
+    Shader* m_ourShader_text;
     WorldConfig  m_worldConfig;
     FontConfig   m_fontConfig;
     PlayerConfig m_playerConfig;
@@ -63,6 +67,7 @@ class Game
     void LoadConfig(const std::string& filepath);
     bool sCheckCollision(std::shared_ptr<Entity> one, std::shared_ptr<Entity> two);
 
+    void RenderText(Shader* shader, std::string text, float x, float y, float scale, glm::vec3 color);
     glm::vec3 sManifoldCollision(std::shared_ptr<Entity> e1, std::shared_ptr<Entity> e2);
 
 public:
