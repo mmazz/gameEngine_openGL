@@ -533,12 +533,9 @@ void Game::sUserInput()
     {
         double xpos, ypos;
         glfwGetCursorPos(m_window, &xpos, &ypos );
-        std::cout << m_ratio << std::endl;
-        std::cout << "before " << xpos << " " << ypos << std::endl;
         xpos = (-1.0 + 2.0 * (double) xpos / (float)m_worldConfig.W)*m_ratio;
         ypos = 1.0 - 2.0 * (double) ypos / (float)m_worldConfig.H;
         glm::vec2 mousePos = glm::vec2(xpos, ypos);
-        std::cout << "after " << xpos << " " << ypos << std::endl;
         spawnBullet(m_player, mousePos);
     }
 }

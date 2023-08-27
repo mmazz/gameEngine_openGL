@@ -14,21 +14,14 @@ EntityManager::EntityManager()
 {
 
 }
-
 void EntityManager::removeDeadEntities(EntityVec& vec)
 {
-    std::vector<int> entitys_dead;
-    int count = 0;
-    for (auto e: vec)
-    {
-        if (!e->m_active)
-            entitys_dead.push_back(count);
-        count++;
-    }
-    for ( size_t i=entitys_dead.size()-1; i>=0 ; i++)
-    {
-        vec.erase(vec.begin()+i);
-    }
+   // for (auto e: vec)
+   // {
+   //     if (!e->m_active)
+   //         vec = std::remove_if(vec.begin(), vec.end(), isAlive);
+   // }
+   vec.erase(std::remove_if(vec.begin(), vec.end(), [&](std::shared_ptr<Entity> e) { return (!e->isActive()); }), vec.end());
 }
 
 std::shared_ptr<Entity> EntityManager::addEntity(const enum tag& tag)
@@ -48,10 +41,10 @@ void EntityManager::update()
 
     m_entitiesToAdd.clear();
 
-//    removeDeadEntities(m_entities);
+    removeDeadEntities(m_entities);
     for (auto& [tag, entityVec] : m_entityMap)
     {
-  //      removeDeadEntities(entityVec);
+        removeDeadEntities(entityVec);
     }
 }
 
